@@ -9,6 +9,8 @@ public final class TestRunner {
         ValidatorTests.register();
         OutputTests.register();
         AppTests.register();
+        com.example.casc.ingest.IngestTests.register();
+        IngestAppTests.register();
         int failed = 0;
         int skipped = 0;
         for (TestKit.Case c : TestKit.CASES) {

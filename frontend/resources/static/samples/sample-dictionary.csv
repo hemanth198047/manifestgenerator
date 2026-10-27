@@ -1,0 +1,5 @@
+Table,Column,Description,Type
+trade.clients,client_id,Unique client identifier,VARCHAR(20)
+trade.clients,client_name,"Legal name of the client,
+as registered",VARCHAR(100)
+trade.clients,country_code,ISO country code,CHAR(2)

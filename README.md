@@ -3,8 +3,9 @@
 Generates and validates CasC manifests for the Firmwide Data Catalog. The application uses the JDK only:
 no Spring, no Jackson, no JavaFX, no libraries of any kind. It runs on Windows and Linux from one jar.
 
-Current phase: 2 of 7 (validation, JSON and YAML export, browser UI, CLI). Ingestion of SQL, CSV, documents and URLs
-arrives in later phases. See `docs/CAPABILITIES.md`.
+Current phase: 3 of 7 (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
+into an unreviewed draft manifest). Documents (DOCX, PDF), spreadsheets and HTML need libraries that are not part of this build; URLs and
+OpenAPI JSON arrive in Phase 4. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
 
 ## Layout
 
@@ -28,6 +29,7 @@ gradle wrapper                      # once, with your approved Gradle (Windows: 
 java -jar build/libs/casc-generator.jar web            # http://127.0.0.1:8080/
 java -jar build/libs/casc-generator.jar validate --input manifest.json
 java -jar build/libs/casc-generator.jar export --input manifest.json --output out.yaml --format yaml
+java -jar build/libs/casc-generator.jar ingest --input-files ./specs --db-name TRADE_DB --default-schema trade --output ./manifest.json
 ```
 
 Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.

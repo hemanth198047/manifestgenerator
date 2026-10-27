@@ -19,3 +19,9 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, Conso
 pre { background: var(--card); border: 1px solid var(--line); padding: 0.8rem; overflow-x: auto; max-height: 28rem; }
 .button, button { background: var(--accent); color: #fff; border: 0; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; text-decoration: none; }
 code { font-family: ui-monospace, Consolas, monospace; }
+.source { border: 1px solid var(--line); background: var(--card); padding: 0.6rem; margin-bottom: 0.6rem; border-radius: 4px; }
+.source input { width: 24rem; max-width: 100%; margin-bottom: 0.4rem; }
+fieldset { border: 1px solid var(--line); border-radius: 4px; }
+fieldset label { margin-right: 1rem; white-space: nowrap; }
+details { background: var(--card); border: 1px solid var(--line); padding: 0.4rem 0.6rem; margin-bottom: 0.4rem; border-radius: 4px; }
+summary { cursor: pointer; }

@@ -4,7 +4,14 @@ import com.example.casc.app.Capability;
 import com.example.casc.app.CapabilityService;
 import com.example.casc.app.CapabilityUnavailableException;
 import com.example.casc.app.ExportResult;
+import com.example.casc.app.DraftPipeline;
 import com.example.casc.app.ExportService;
+import com.example.casc.domain.Enums;
+import com.example.casc.domain.Enums.DatabaseType;
+import com.example.casc.ingest.DraftBuilder;
+import com.example.casc.ingest.IngestOptions;
+import com.example.casc.ingest.InputFiles;
+import com.example.casc.ingest.RawMetadataBundle;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
@@ -19,7 +26,9 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,14 +60,20 @@ public final class Cli {
         }
     }
 
-    private record Opts(Map<String, String> values, Set<String> flags) {
+    private record Opts(Map<String, List<String>> values, Set<String> flags) {
+        /** Last value given for the option, or the fallback. */
         String get(String k, String fallback) {
-            return values.getOrDefault(k, fallback);
+            List<String> v = values.get(k);
+            return v == null ? fallback : v.get(v.size() - 1);
+        }
+
+        List<String> all(String k) {
+            return values.getOrDefault(k, List.of());
         }
     }
 
     private static Opts parse(String[] args, int from, Set<String> valued, Set<String> flags) throws UsageException {
-        Map<String, String> values = new HashMap<>();
+        Map<String, List<String>> values = new HashMap<>();
         Set<String> seen = new HashSet<>();
         for (int i = from; i < args.length; i++) {
             String a = args[i];
@@ -66,7 +81,7 @@ public final class Cli {
                 if (i + 1 >= args.length) {
                     throw new UsageException("Option " + a + " needs a value.");
                 }
-                values.put(a, args[++i]);
+                values.computeIfAbsent(a, k -> new ArrayList<>()).add(args[++i]);
             } else if (flags.contains(a)) {
                 seen.add(a);
             } else {
@@ -98,6 +113,10 @@ public final class Cli {
                 case "export":
                     return export(parse(args, 1, Set.of("--input", "--format", "--output"),
                             Set.of("--overwrite", "--allow-invalid")), out, err);
+                case "ingest":
+                    return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
+                            "--mode", "--max-rows", "--map", "--db-name", "--db-type", "--default-schema", "--format",
+                            "--output", "--bundle-output"), Set.of("--no-header", "--overwrite", "--json")), out, err);
                 case "web":
                     return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes"), Set.of()), out, err);
                 default:
@@ -120,6 +139,10 @@ public final class Cli {
         p.println("  web [--bind ADDR] [--port N] [--max-body-bytes N]   start the web UI (default 127.0.0.1:8080)");
         p.println("  validate --input FILE [--json]                        validate a manifest (JSON)");
         p.println("  export --input FILE --output FILE [--format json|yaml] [--overwrite] [--allow-invalid]");
+        p.println("  ingest --input-files PATH [--input-files PATH ...]   read SQL, CSV, TSV, TXT, Markdown sources");
+        p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
+        p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
+        p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
         p.println("  capabilities [--json]                                 list available and unavailable capabilities");
         p.println("  version | help");
         p.println("Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.");
@@ -237,6 +260,105 @@ public final class Cli {
         } finally {
             Files.deleteIfExists(tmp);
         }
+    }
+
+    private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
+        List<String> paths = o.all("--input-files");
+        if (paths.isEmpty()) {
+            throw new UsageException("--input-files PATH is required (repeat the option for several files or directories).");
+        }
+        Map<String, String> m = new LinkedHashMap<>();
+        for (String[] pair : new String[][] {{"--dialect", "dialect"}, {"--delimiter", "delimiter"}, {"--header-row", "headerRow"},
+                {"--mode", "mode"}, {"--max-rows", "maxRows"}}) {
+            if (o.get(pair[0], null) != null) {
+                m.put(pair[1], o.get(pair[0], null));
+            }
+        }
+        if (o.flags().contains("--no-header")) {
+            m.put("hasHeader", "false");
+        }
+        for (String kv : o.all("--map")) {
+            int eq = kv.indexOf('=');
+            if (eq <= 0) {
+                throw new UsageException("--map expects FIELD=HEADER, for example --map column=Field");
+            }
+            m.put("map." + kv.substring(0, eq), kv.substring(eq + 1));
+        }
+        IngestOptions options;
+        try {
+            options = IngestOptions.fromMap(m);
+        } catch (IllegalArgumentException e) {
+            throw new UsageException(e.getMessage());
+        }
+        String dbName = o.get("--db-name", null);
+        String output = o.get("--output", null);
+        if ((dbName == null) != (output == null)) {
+            throw new UsageException("--db-name and --output must be given together to write a draft manifest.");
+        }
+        DatabaseType dbType = null;
+        if (o.get("--db-type", null) != null) {
+            dbType = Enums.parse(DatabaseType.class, o.get("--db-type", null)).orElseThrow(() ->
+                    new UsageException("--db-type must be one of: " + java.util.Arrays.stream(DatabaseType.values())
+                            .map(DatabaseType::label).collect(java.util.stream.Collectors.joining(", "))));
+        }
+        String root = o.get("--root", envOr("CASC_INPUT_ROOT", ""));
+        DraftPipeline pipeline = new DraftPipeline();
+        InputFiles.Result files = InputFiles.collect(paths, root.isBlank() ? null : Path.of(root),
+                pipeline.ingestion().knownExtensions());
+        for (String note : files.notes()) {
+            err.println("Note: " + note);
+        }
+        RawMetadataBundle bundle = pipeline.ingest(files.inputs(), options);
+        try {
+            if (o.get("--bundle-output", null) != null) {
+                writeAtomically(Path.of(o.get("--bundle-output", null)), Json.write(bundle.toTree()) + "\n", o.flags().contains("--overwrite"));
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        if (o.flags().contains("--json")) {
+            out.println(Json.write(bundle.toTree()));
+        } else {
+            for (RawMetadataBundle.SourceInfo s : bundle.sources()) {
+                out.println(s.status() + " " + s.name() + " (" + s.format() + "): " + s.detail());
+            }
+            out.println("Found " + bundle.tables().size() + " table(s)/view(s), " + bundle.terms().size() + " candidate term(s).");
+            printReport(new ValidationReport(bundle.findings()), out);
+        }
+        if (DraftPipeline.hasErrors(bundle)) {
+            err.println("Some sources failed; no draft manifest was written.");
+            return INVALID;
+        }
+        if (dbName == null) {
+            return OK;
+        }
+        DraftPipeline.Outcome draft;
+        try {
+            draft = pipeline.draft(files.inputs(), options,
+                    new DraftBuilder.SystemContext(dbName, dbType, o.get("--default-schema", null)), o.get("--format", "json"));
+        } catch (CapabilityUnavailableException e) {
+            throw new UsageException(e.getMessage());
+        }
+        if (draft.export() == null) {
+            printReport(new ValidationReport(draft.draftFindings()), err);
+            err.println("The draft could not be created; nothing was written.");
+            return INVALID;
+        }
+        if (!draft.export().exportable()) {
+            printReport(draft.export().report(), err);
+            err.println("The draft has validation errors; nothing was written. Fix the sources or the conflicts above.");
+            return INVALID;
+        }
+        try {
+            writeAtomically(Path.of(output), draft.export().content(), o.flags().contains("--overwrite"));
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        printReport(draft.export().report(), out);
+        out.println("Wrote UNREVIEWED draft " + draft.export().format() + " manifest to " + Path.of(output).toAbsolutePath());
+        return OK;
     }
 
     private static int web(Opts o, PrintStream out, PrintStream err) throws UsageException {

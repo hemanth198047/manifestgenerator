@@ -4,7 +4,16 @@ import com.example.casc.app.Capability;
 import com.example.casc.app.CapabilityService;
 import com.example.casc.app.CapabilityUnavailableException;
 import com.example.casc.app.ExportResult;
+import com.example.casc.app.DraftPipeline;
 import com.example.casc.app.ExportService;
+import com.example.casc.domain.Enums;
+import com.example.casc.domain.Enums.DatabaseType;
+import com.example.casc.ingest.DraftBuilder;
+import com.example.casc.ingest.IngestOptions;
+import com.example.casc.ingest.IngestRequest;
+import com.example.casc.ingest.RawMetadataBundle;
+import com.example.casc.ingest.RawMetadataBundle.RawTable;
+import com.example.casc.ingest.SourceInput;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
@@ -24,6 +33,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -54,6 +64,7 @@ public final class WebServer implements AutoCloseable {
     private final ExecutorService pool;
     private final ExportService export = ExportService.standard();
     private final CapabilityService capabilities = new CapabilityService();
+    private final DraftPipeline pipeline = new DraftPipeline();
     private final boolean loopbackOnly;
 
     private static final class BodyTooLarge extends Exception {
@@ -125,6 +136,16 @@ public final class WebServer implements AutoCloseable {
                     validatePost(x);
                 }
             }
+            case "/sources" -> {
+                if (method.equals("GET")) {
+                    sourcesPage(x, 200, List.of(), Map.of(), "", "");
+                } else if (allow(x, "POST")) {
+                    sourcesPost(x);
+                }
+            }
+            case "/draft" -> { if (allow(x, "POST")) draftPost(x); }
+            case "/api/ingest" -> { if (allow(x, "POST")) apiIngest(x); }
+            case "/api/draft" -> { if (allow(x, "POST")) apiDraft(x); }
             case "/download" -> { if (allow(x, "POST")) download(x); }
             case "/api/capabilities" -> { if (allow(x, "GET")) apiCapabilities(x); }
             case "/api/validate" -> { if (allow(x, "POST")) apiValidate(x); }
@@ -227,11 +248,12 @@ public final class WebServer implements AutoCloseable {
         Map<String, String> form = form(readBody(x));
         String text = form.getOrDefault("manifest", "");
         String format = form.getOrDefault("format", "json");
-        showResult(x, text, format, null);
+        showResult(x, text, format, null, List.of());
     }
 
     /** Renders the validate page with a result. blockedMessage is set when a download was refused. */
-    private void showResult(HttpExchange x, String text, String format, String blockedMessage) throws Exception {
+    private void showResult(HttpExchange x, String text, String format, String blockedMessage, List<String> unresolved)
+            throws Exception {
         ReadResult in;
         try {
             in = export.read(text);
@@ -242,7 +264,7 @@ public final class WebServer implements AutoCloseable {
         }
         ExportResult r;
         try {
-            r = export.export(in, List.of(), format);
+            r = export.export(in, unresolved, format);
         } catch (CapabilityUnavailableException e) {
             page(x, 400, "Validate", "validate", validateValues(text, "json", banner(true, e.getMessage()), ""));
             return;
@@ -314,23 +336,235 @@ public final class WebServer implements AutoCloseable {
         try {
             in = export.read(text);
         } catch (JsonException e) {
-            showResult(x, text, format, null);
+            showResult(x, text, format, null, List.of());
             return;
         }
         ExportResult r;
         try {
             r = export.export(in, List.of(), format);
         } catch (CapabilityUnavailableException e) {
-            showResult(x, text, "json", null);
+            showResult(x, text, "json", null, List.of());
             return;
         }
         if (!r.exportable() && !allowInvalid) {
             showResult(x, text, format, "Download blocked: " + r.report().errors().size()
-                    + " error(s) remain. Fix them, or tick 'Download anyway'.");
+                    + " error(s) remain. Fix them, or tick 'Download anyway'.", List.of());
             return;
         }
         x.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"manifest." + r.fileExtension() + "\"");
         send(x, 200, r.contentType(), r.content().getBytes(StandardCharsets.UTF_8));
+    }
+
+    // ------------------------------------------------------------------ sources (step 1)
+
+    private static String sourceBlock(String name, String text) {
+        return "<div class=\"source\"><input name=\"name\" value=\"" + Html.esc(name)
+                + "\" placeholder=\"file name, e.g. schema.sql\"><textarea name=\"text\" rows=\"8\" spellcheck=\"false\">"
+                + Html.esc(text) + "</textarea></div>\n";
+    }
+
+    private static String select(String name, String label, List<String> values, String selected) {
+        StringBuilder b = new StringBuilder("<label>" + Html.esc(label) + " <select name=\"" + name + "\">");
+        for (String v : values) {
+            b.append("<option value=\"").append(Html.esc(v)).append('"').append(v.equals(selected) ? " selected" : "")
+                    .append('>').append(Html.esc(v)).append("</option>");
+        }
+        return b.append("</select></label>\n").toString();
+    }
+
+    private static String optionControls(Map<String, String> f) {
+        boolean header = f.isEmpty() || "true".equals(f.get("hasHeader"));
+        return select("dialect", "SQL dialect", new ArrayList<>(new java.util.TreeSet<>(IngestOptions.DIALECTS)), f.getOrDefault("dialect", "auto"))
+                + select("delimiter", "Delimiter", List.of("auto", "comma", "tab", "semicolon", "pipe"), f.getOrDefault("delimiter", "auto"))
+                + select("mode", "CSV/TSV mode", List.of("auto", "data", "dictionary"), f.getOrDefault("mode", "auto"))
+                + "<label><input type=\"checkbox\" name=\"hasHeader\" value=\"true\"" + (header ? " checked" : "") + "> Header row</label>\n"
+                + "<label>Header row number <input type=\"number\" name=\"headerRow\" min=\"1\" value=\"" + Html.esc(f.getOrDefault("headerRow", "1")) + "\"></label>\n"
+                + "<label>Sampling limit (rows) <input type=\"number\" name=\"maxRows\" min=\"1\" value=\"" + Html.esc(f.getOrDefault("maxRows", "10000")) + "\"></label>\n";
+    }
+
+    private void sourcesPage(HttpExchange x, int status, List<SourceInput> sources, Map<String, String> opts,
+                             String banner, String result) throws IOException {
+        StringBuilder blocks = new StringBuilder();
+        for (SourceInput s : sources) {
+            blocks.append(sourceBlock(s.name(), s.text() == null ? "" : s.text()));
+        }
+        if (sources.isEmpty()) {
+            blocks.append(sourceBlock("", ""));
+        }
+        Map<String, String> v = new LinkedHashMap<>();
+        v.put("banner", banner);
+        v.put("sourceBlocks", blocks.toString());
+        v.put("optionControls", optionControls(opts));
+        v.put("result", result);
+        page(x, status, "Sources", "sources", v);
+    }
+
+    private static List<SourceInput> sourcesFromForm(Map<String, List<String>> f) {
+        List<String> names = f.getOrDefault("name", List.of());
+        List<String> texts = f.getOrDefault("text", List.of());
+        List<SourceInput> out = new ArrayList<>();
+        for (int i = 0; i < Math.max(names.size(), texts.size()); i++) {
+            String n = i < names.size() ? names.get(i).trim() : "";
+            String t = i < texts.size() ? texts.get(i) : "";
+            if (n.isEmpty() && t.isBlank()) {
+                continue;
+            }
+            if (n.isEmpty()) {
+                throw new IllegalArgumentException("Give every source a file name with its extension, for example schema.sql");
+            }
+            out.add(SourceInput.of(n, t));
+        }
+        return out;
+    }
+
+    private static Map<String, String> optionsFromForm(Map<String, String> f) {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (String k : List.of("dialect", "mode", "headerRow", "maxRows")) {
+            if (f.get(k) != null && !f.get(k).isBlank()) {
+                m.put(k, f.get(k));
+            }
+        }
+        if (f.get("delimiter") != null && !f.get("delimiter").equals("auto") && !f.get("delimiter").isBlank()) {
+            m.put("delimiter", f.get("delimiter"));
+        }
+        m.put("hasHeader", "true".equals(f.get("hasHeader")) ? "true" : "false");
+        return m;
+    }
+
+    private static Map<String, String> firstValues(Map<String, List<String>> f) {
+        Map<String, String> out = new LinkedHashMap<>();
+        f.forEach((k, v) -> out.put(k, v.get(0)));
+        return out;
+    }
+
+    private void sourcesPost(HttpExchange x) throws Exception {
+        Map<String, List<String>> multi = formMulti(readBody(x));
+        Map<String, String> first = firstValues(multi);
+        List<SourceInput> sources;
+        IngestOptions options;
+        try {
+            sources = sourcesFromForm(multi);
+            options = IngestOptions.fromMap(optionsFromForm(first));
+        } catch (IllegalArgumentException e) {
+            sourcesPage(x, 400, List.of(), first, banner(true, e.getMessage()), "");
+            return;
+        }
+        RawMetadataBundle bundle = pipeline.ingest(sources, options);
+        boolean errors = DraftPipeline.hasErrors(bundle);
+        String banner = errors
+                ? banner(true, "Some sources could not be read. Fix them or remove them before creating a draft.")
+                : banner(false, "Sources inspected. Review what was found, then create a draft manifest.");
+        sourcesPage(x, 200, sources, first, banner, bundleHtml(bundle, sources, first, !errors));
+    }
+
+    private void draftPost(HttpExchange x) throws Exception {
+        Map<String, List<String>> multi = formMulti(readBody(x));
+        Map<String, String> first = firstValues(multi);
+        List<SourceInput> sources;
+        IngestOptions options;
+        DraftBuilder.SystemContext ctx;
+        try {
+            sources = sourcesFromForm(multi);
+            options = IngestOptions.fromMap(optionsFromForm(first));
+            String type = first.getOrDefault("databaseType", "");
+            DatabaseType dt = type.isBlank() ? null : Enums.parse(DatabaseType.class, type)
+                    .orElseThrow(() -> new IllegalArgumentException("Database type '" + type + "' is not an allowed value"));
+            ctx = new DraftBuilder.SystemContext(first.getOrDefault("databaseLogicalName", ""), dt, first.getOrDefault("defaultSchema", ""));
+        } catch (IllegalArgumentException e) {
+            sourcesPage(x, 400, List.of(), first, banner(true, e.getMessage()), "");
+            return;
+        }
+        DraftPipeline.Outcome out = pipeline.draft(sources, options, ctx, "json");
+        if (out.export() == null) {
+            StringBuilder msg = new StringBuilder("The draft could not be created.");
+            for (Finding f : out.draftFindings()) {
+                msg.append(' ').append(f.message());
+            }
+            StringBuilder result = new StringBuilder(bundleHtml(out.bundle(), sources, first, false));
+            sourcesPage(x, 422, sources, first, banner(true, msg.toString()), result.toString());
+            return;
+        }
+        showResult(x, out.export().content(), "json", null, out.unresolved());
+    }
+
+    private String bundleHtml(RawMetadataBundle b, List<SourceInput> sources, Map<String, String> opts, boolean offerDraft) {
+        StringBuilder h = new StringBuilder("<h2>Detected</h2>");
+        h.append("<table><thead><tr><th>Source</th><th>Format</th><th>Status</th><th>Detail</th></tr></thead><tbody>");
+        for (RawMetadataBundle.SourceInfo s : b.sources()) {
+            h.append("<tr><td>").append(Html.esc(s.name())).append("</td><td>").append(Html.esc(s.format()))
+                    .append("</td><td>").append(Html.esc(s.status())).append("</td><td>").append(Html.esc(s.detail())).append("</td></tr>");
+        }
+        h.append("</tbody></table>");
+        h.append("<h3>Tables and views (").append(b.tables().size()).append(")</h3>");
+        for (RawTable t : b.tables()) {
+            String qn = (t.schema() == null ? "" : t.schema() + ".") + t.name();
+            h.append("<details><summary>").append(Html.esc(qn)).append(" &middot; ").append(Html.esc(t.kind()))
+                    .append(" &middot; ").append(t.columns().size()).append(" column(s) &middot; ")
+                    .append(Html.esc(t.source() + ", " + t.location())).append("</summary>");
+            if (t.description() != null) {
+                h.append("<p>").append(Html.esc(t.description())).append("</p>");
+            }
+            h.append("<table><thead><tr><th>Column</th><th>Type</th><th>Nullable</th><th>PK</th><th>Description</th><th>Location</th></tr></thead><tbody>");
+            for (RawMetadataBundle.RawColumn c : t.columns()) {
+                h.append("<tr><td>").append(Html.esc(c.name())).append("</td><td>")
+                        .append(Html.esc(c.dataType() == null ? "" : c.dataType() + (c.typeInferred() ? " (inferred)" : "")))
+                        .append("</td><td>").append(c.nullable() == null ? "" : c.nullable() ? "yes" : "no")
+                        .append("</td><td>").append(c.primaryKey() ? "yes" : "").append("</td><td>")
+                        .append(Html.esc(c.description())).append("</td><td>").append(Html.esc(c.location())).append("</td></tr>");
+            }
+            h.append("</tbody></table></details>");
+        }
+        if (!b.terms().isEmpty()) {
+            h.append("<h3>Candidate terms (").append(b.terms().size()).append(") &ndash; review required</h3><table><thead><tr><th>Term</th><th>Description</th><th>Location</th></tr></thead><tbody>");
+            for (RawMetadataBundle.RawTerm t : b.terms()) {
+                h.append("<tr><td>").append(Html.esc(t.name())).append("</td><td>").append(Html.esc(t.description()))
+                        .append("</td><td>").append(Html.esc(t.source() + ", " + t.location())).append("</td></tr>");
+            }
+            h.append("</tbody></table>");
+        }
+        List<RawMetadataBundle.RawNote> lineageNotes = b.notes().stream().filter(n -> n.kind().equals("LINEAGE_TEXT")).toList();
+        if (!lineageNotes.isEmpty() || !b.lineage().isEmpty()) {
+            h.append("<h3>Lineage (for review; nothing is written to the manifest)</h3><ul>");
+            for (RawMetadataBundle.LineageHint l : b.lineage()) {
+                h.append("<li>").append(Html.esc(l.target() + " \u2190 " + l.source() + " (" + l.origin() + ", " + l.location() + ")")).append("</li>");
+            }
+            for (RawMetadataBundle.RawNote n : lineageNotes) {
+                h.append("<li>").append(Html.esc(n.text() + " (" + n.source() + ", " + n.location() + ")")).append("</li>");
+            }
+            h.append("</ul>");
+        }
+        ValidationReport rep = new ValidationReport(b.findings());
+        section(h, "Errors", rep.errors(), true);
+        section(h, "Warnings", rep.warnings(), true);
+        section(h, "Info", rep.infos(), false);
+        if (offerDraft) {
+            h.append("<h2>Create a draft manifest</h2><p>The draft contains databases, schemas, tables and columns only. "
+                    + "Logical services, logical data elements, table types, PII and attestations are left for you to decide.</p>");
+            h.append("<form method=\"post\" action=\"/draft\">");
+            for (SourceInput s : sources) {
+                h.append("<input type=\"hidden\" name=\"name\" value=\"").append(Html.esc(s.name()))
+                        .append("\"><textarea name=\"text\" hidden>").append(Html.esc(s.text())).append("</textarea>");
+            }
+            for (String k : List.of("dialect", "delimiter", "mode", "headerRow", "maxRows")) {
+                if (opts.get(k) != null) {
+                    h.append("<input type=\"hidden\" name=\"").append(k).append("\" value=\"").append(Html.esc(opts.get(k))).append("\">");
+                }
+            }
+            if ("true".equals(opts.get("hasHeader")) || opts.isEmpty()) {
+                h.append("<input type=\"hidden\" name=\"hasHeader\" value=\"true\">");
+            }
+            List<String> types = new ArrayList<>(List.of(""));
+            for (DatabaseType t : DatabaseType.values()) {
+                types.add(t.label());
+            }
+            h.append("<p><label>Database logical name (TAI) <input name=\"databaseLogicalName\" value=\"")
+                    .append(Html.esc(opts.getOrDefault("databaseLogicalName", ""))).append("\"></label> ");
+            h.append(select("databaseType", "Database type", types, opts.getOrDefault("databaseType", "")));
+            h.append("<label>Default schema (for tables without one) <input name=\"defaultSchema\" value=\"")
+                    .append(Html.esc(opts.getOrDefault("defaultSchema", ""))).append("\"></label> ");
+            h.append("<button type=\"submit\">Create draft</button></p></form>");
+        }
+        return h.toString();
     }
 
     // ------------------------------------------------------------------ REST
@@ -383,6 +617,54 @@ public final class WebServer implements AutoCloseable {
         }
     }
 
+    private void apiIngest(HttpExchange x) throws Exception {
+        IngestRequest req;
+        try {
+            req = IngestRequest.fromTree(Json.parse(readBody(x)));
+        } catch (JsonException | IllegalArgumentException e) {
+            json(x, 400, error(e.getMessage()));
+            return;
+        }
+        RawMetadataBundle bundle = pipeline.ingest(req.sources(), req.options());
+        Map<String, Object> t = bundle.toTree();
+        t.put("hasErrors", DraftPipeline.hasErrors(bundle));
+        json(x, 200, t);
+    }
+
+    private void apiDraft(HttpExchange x) throws Exception {
+        String format = query(x, "format", "json");
+        IngestRequest req;
+        try {
+            req = IngestRequest.fromTree(Json.parse(readBody(x)));
+            if (req.system() == null) {
+                throw new IllegalArgumentException("'system' is required to build a draft");
+            }
+        } catch (JsonException | IllegalArgumentException e) {
+            json(x, 400, error(e.getMessage()));
+            return;
+        }
+        DraftPipeline.Outcome out;
+        try {
+            out = pipeline.draft(req.sources(), req.options(), req.system(), format);
+        } catch (CapabilityUnavailableException e) {
+            json(x, 400, error(e.getMessage()));
+            return;
+        }
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("drafted", out.export() != null);
+        t.put("sourceFindings", out.bundle().findings().stream().map(f -> (Object) f.toTree()).toList());
+        t.put("draftFindings", out.draftFindings().stream().map(f -> (Object) f.toTree()).toList());
+        if (out.export() != null) {
+            t.put("format", out.export().format());
+            t.put("exportable", out.export().exportable());
+            t.put("validationLevel", out.export().validationLevel());
+            t.put("unresolved", new ArrayList<Object>(out.unresolved()));
+            t.put("report", out.export().report().toTree());
+            t.put("content", out.export().content());
+        }
+        json(x, out.export() != null ? 200 : 422, t);
+    }
+
     private static Map<String, Object> error(String message) {
         Map<String, Object> t = new LinkedHashMap<>();
         t.put("error", message);
@@ -428,8 +710,8 @@ public final class WebServer implements AutoCloseable {
         }
     }
 
-    private static Map<String, String> form(String body) {
-        Map<String, String> out = new LinkedHashMap<>();
+    private static Map<String, List<String>> formMulti(String body) {
+        Map<String, List<String>> out = new LinkedHashMap<>();
         if (body.isEmpty()) {
             return out;
         }
@@ -437,8 +719,15 @@ public final class WebServer implements AutoCloseable {
             int eq = pair.indexOf('=');
             String k = eq < 0 ? pair : pair.substring(0, eq);
             String v = eq < 0 ? "" : pair.substring(eq + 1);
-            out.put(URLDecoder.decode(k, StandardCharsets.UTF_8), URLDecoder.decode(v, StandardCharsets.UTF_8));
+            out.computeIfAbsent(URLDecoder.decode(k, StandardCharsets.UTF_8), key -> new ArrayList<>())
+                    .add(URLDecoder.decode(v, StandardCharsets.UTF_8));
         }
+        return out;
+    }
+
+    private static Map<String, String> form(String body) {
+        Map<String, String> out = new LinkedHashMap<>();
+        formMulti(body).forEach((k, v) -> out.put(k, v.get(0)));
         return out;
     }
 

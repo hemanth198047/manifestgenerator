@@ -20,3 +20,12 @@ Status: C = confirmed, P = provisional, U = unverified, X = conflict, A = archit
 | D-014 | A | YAML is export-only via a narrow emitter | All strings double-quoted so Yes/No never become booleans. No YAML parser exists |
 | D-015 | A | Web UI has no authentication | Loopback binding by default, Host and Origin checks. Non-loopback binding prints a warning; approved access control is a deployment requirement |
 | D-016 | A | Unreadable, malformed or mistyped input fields are reported, never silently dropped | Reader emits TYPE_MISMATCH, ENUM_INVALID, UNKNOWN_FIELD; bad list items keep their index |
+| D-017 | A | Sources are extracted into a RawMetadataBundle before any manifest | Provenance (source and location) is kept for every item; row values from data files are never retained |
+| D-018 | A | SQL is read by a restricted in-house parser for a documented subset | Never executed. DML is reported, not analysed, and no transformation lineage is inferred. General SQL needs an approved parser |
+| D-019 | A | A draft manifest contains structure only | Terms stay candidates; services, elements, PII, attestations, table types and keys are left to the reviewer |
+| D-020 | A | Input path boundary | Optional root checked after symlink resolution; symlinks inside scanned directories are skipped; depth 4; size and count limits |
+| D-021 | A | Identifier case is preserved | Names are compared case-insensitively inside one SQL file to resolve ALTER and COMMENT statements |
+| D-022 | U | View lineage hints are never written to manifests | The sourcedFromColumns shape is unverified (D-007) |
+| D-023 | A | The draft's unresolved decision is shown when the draft is created | The UI is stateless until the Phase 5 wizard state exists, so later validation posts do not repeat it |
+| D-024 | A | JSON and YAML files are skipped in directory scans but rejected as explicit sources | Avoids failing a scan because of unrelated configuration files |
+
