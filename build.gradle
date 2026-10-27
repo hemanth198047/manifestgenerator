@@ -34,6 +34,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Layout: backend/ (Java + config), frontend/ (Thymeleaf templates + static assets), infrastructure/ (launchers, config examples).
+// The frontend directory is packaged onto the classpath as templates/ and static/ and needs no separate build tool.
+sourceSets {
+    main {
+        java.srcDirs = ['backend/src/main/java']
+        resources.srcDirs = ['backend/src/main/resources', 'frontend/resources']
+    }
+    test {
+        java.srcDirs = ['backend/src/test/java']
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

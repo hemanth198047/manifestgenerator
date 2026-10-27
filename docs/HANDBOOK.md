@@ -1,6 +1,13 @@
 # Manual Recreation Handbook
 
-## Phase 1 file order
+## Layout
+- backend/src/main/java, backend/src/main/resources, backend/src/test/java : Java code and config
+- frontend/resources/templates, frontend/resources/static : Thymeleaf pages and CSS (no Node, CDN or fonts)
+- infrastructure/launchers, infrastructure/config : optional scripts and config examples
+- docs/ : decision log, dependencies, capabilities, this handbook
+build.gradle maps these directories through sourceSets; there is still one Gradle project and one jar.
+
+## Phase 1 file order (paths below are relative to the layout above)
 1. settings.gradle (~15 lines) 2. gradle.properties (~5) 3. build.gradle (~50) 4. .gitignore 5. .gitattributes
 6. src/main/resources/application.properties 7. CascGeneratorApplication.java 8. profile/SchemaProfile.java
 9. domain/Enums.java 10. domain/CasCManifest.java 11. test EnumsTest.java 12. docs/*
