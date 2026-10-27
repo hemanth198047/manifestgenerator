@@ -1,14 +1,3 @@
-// Plugin resolution: internal repository only. No gradlePluginPortal() or mavenCentral() by default.
-pluginManagement {
-    repositories {
-        maven {
-            url = providers.gradleProperty('internalPluginRepoUrl').orElse('https://REPLACE-ME.internal/artifactory/gradle-plugins').get()
-            credentials {
-                username = providers.environmentVariable('REPO_USER').orNull
-                password = providers.environmentVariable('REPO_PASSWORD').orNull
-            }
-        }
-    }
-}
-
+// Zero external dependencies: only Gradle's built-in 'java' plugin is used, so no plugin or
+// dependency repositories are configured. Add internal repositories here only if you add libraries.
 rootProject.name = 'casc-generator'

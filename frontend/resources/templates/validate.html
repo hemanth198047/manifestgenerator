@@ -1,0 +1,18 @@
+<h1>Validate &amp; export</h1>
+{{banner}}
+<form method="post" action="/validate">
+  <p>
+    <label for="manifest">Manifest (JSON)</label><br>
+    <textarea id="manifest" name="manifest" rows="18" spellcheck="false">{{manifest}}</textarea>
+  </p>
+  <p>
+    <input type="file" id="file" accept=".json,application/json">
+    <button type="button" id="loadSample">Load sample</button>
+  </p>
+  <p>
+    <label for="format">Output format</label>
+    <select id="format" name="format">{{formatOptions}}</select>
+    <button type="submit">Validate &amp; preview</button>
+  </p>
+</form>
+{{result}}

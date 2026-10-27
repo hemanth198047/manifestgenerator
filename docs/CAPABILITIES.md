@@ -1,10 +1,20 @@
-# Capability Matrix (end of Phase 1)
+# Capability Matrix (end of Phase 2)
 
-| Capability | Dependency | Status | Build enablement | When disabled | Verified |
-|------------|------------|--------|------------------|---------------|----------|
-| Domain model, provisional profile | JDK only | Baseline | always | n/a | Not executed |
-| JSON output | Jackson (via starter-web) | Baseline, Phase 2 | always | n/a | Not yet built |
-| YAML | Jackson YAML | Optional, Phase 2 | planned `-PenableYaml` | JSON only, UI says YAML unavailable | Not built |
-| CSV/TSV, SQL, XLSX, DOCX, PDF, HTML | various | Phases 3-4 | planned flags | Explicit unavailable message | Not built |
+Also available at runtime: web home page, `GET /api/capabilities` and `casc-generator capabilities`.
 
-No Gradle build, test run, or OS verification has been executed in the authoring sandbox (no javac, no repository access).
+| Capability | Dependency | Status | When unavailable | Verified |
+|------------|------------|--------|------------------|----------|
+| Manifest import (JSON) | none | Baseline | n/a | Tests executed (Linux) |
+| Local validation, provisional profile | none | Baseline | n/a | Tests executed (Linux) |
+| Export JSON | none | Baseline | n/a | Tests executed (Linux) |
+| Export YAML (narrow emitter) | none | Baseline | n/a | Tests executed (Linux); not read back by a YAML parser |
+| Import YAML | YAML parser | Unavailable | Convert to JSON | n/a |
+| Browser UI | none (JDK HTTP server) | Baseline | n/a | Tests and manual curl (Linux) |
+| JavaFX UI | OpenJFX + native libs | Unavailable | Use the browser UI | n/a |
+| CSV/TSV, TXT/Markdown, SQL subset | none | Planned Phase 3 | n/a | n/a |
+| OpenAPI JSON, URL fetch | none | Planned Phase 4 | n/a | n/a |
+| XLSX, DOCX | Apache POI | Unavailable | Export to CSV/TSV/text | n/a |
+| PDF | Apache PDFBox | Unavailable | Provide a text export | n/a |
+| HTML / Confluence | JSoup or equivalent | Unavailable | JSON APIs or exports | n/a |
+| Official schema validation | schema + validator | Unavailable | Local rules only | n/a |
+| FDC acceptance | target service | Not verified | n/a | n/a |

@@ -1,3 +1,21 @@
-body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7f9; color: #1d2430; }
-main { max-width: 56rem; margin: 2rem auto; padding: 0 1rem; }
-.notice { background: #fff4d6; border: 1px solid #e6c766; padding: 0.6rem 0.8rem; border-radius: 4px; }
+:root { color-scheme: light dark; --bg: #f6f7f9; --fg: #1d2430; --card: #ffffff; --line: #d5d9e0;
+        --warn: #fff4d6; --err: #fde2e2; --ok: #def5e5; --accent: #1f4fbf; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171c; --fg: #e6e9ef; --card: #1d2229; --line: #343b46; --warn: #4a3d12; --err: #4f1f1f; --ok: #1d3d2a; --accent: #8db1ff; }
+}
+body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background: var(--bg); color: var(--fg); }
+header { background: var(--card); border-bottom: 1px solid var(--line); }
+nav { max-width: 64rem; margin: 0 auto; padding: 0.7rem 1rem; display: flex; gap: 1.2rem; align-items: baseline; }
+nav a { color: var(--accent); text-decoration: none; }
+main { max-width: 64rem; margin: 1.5rem auto; padding: 0 1rem; }
+footer { max-width: 64rem; margin: 2rem auto; padding: 0 1rem; font-size: 0.85rem; opacity: 0.8; }
+.notice { background: var(--warn); border: 1px solid var(--line); padding: 0.6rem 0.8rem; border-radius: 4px; }
+.banner-error { background: var(--err); border: 1px solid var(--line); padding: 0.6rem 0.8rem; border-radius: 4px; }
+.banner-ok { background: var(--ok); border: 1px solid var(--line); padding: 0.6rem 0.8rem; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; background: var(--card); }
+th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+td.status-available { font-weight: 600; }
+textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+pre { background: var(--card); border: 1px solid var(--line); padding: 0.8rem; overflow-x: auto; max-height: 28rem; }
+.button, button { background: var(--accent); color: #fff; border: 0; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; text-decoration: none; }
+code { font-family: ui-monospace, Consolas, monospace; }

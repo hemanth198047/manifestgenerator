@@ -1,0 +1,76 @@
+{
+  "logicalServices": [
+    { "name": "TradeService", "isDeployedOnPrem": true, "systemKey": "svc-trade" },
+    { "name": "ReportingService", "isDeployedOnPrem": false, "cloudProvider": "ExampleCloud" }
+  ],
+  "systemDataElements": [
+    {
+      "name": "Trade Quantity",
+      "logicalServices": ["TradeService"],
+      "description": "Number of units traded",
+      "dgcDataConcept": "Quantity",
+      "dgcDataDomain": "Trading"
+    },
+    { "name": "Client Identifier", "logicalServices": ["TradeService"] }
+  ],
+  "interfaces": [
+    {
+      "name": "TradeFeed",
+      "type": "SOURCING",
+      "logicalServices": ["TradeService"],
+      "interfaceDataElements": [
+        {
+          "physicalName": "trade.tradeQuantity",
+          "systemDataElement": "Trade Quantity",
+          "sensitiveDataAttestation": "No"
+        },
+        {
+          "physicalName": "trade.clientId",
+          "systemDataElement": "Client Identifier",
+          "sensitiveDataAttestation": "Yes",
+          "piiElements": [{ "name": "Financial Account Number" }],
+          "dataSubjectCategories": ["Client"]
+        }
+      ]
+    }
+  ],
+  "dataEntities": [
+    {
+      "name": "trading.Trade",
+      "logicalServices": ["TradeService"],
+      "systemDataElements": [{ "name": "Trade Quantity" }]
+    }
+  ],
+  "databases": [
+    {
+      "logicalName": "TRADE_DB",
+      "databaseType": "PostgreSQL",
+      "schemas": [
+        {
+          "physicalName": "public",
+          "tables": [
+            {
+              "physicalName": "trade",
+              "targetTableType": "Transaction",
+              "columns": [
+                {
+                  "physicalName": "trade_qty",
+                  "systemDataElement": "Trade Quantity",
+                  "sensitiveDataAttestation": "No"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "transformations": [
+    {
+      "name": "QuantityRollup",
+      "logicalDescription": "Aggregates trade quantity",
+      "sourceDataElements": ["Trade Quantity"],
+      "targetDataElements": ["Trade Quantity"]
+    }
+  ]
+}

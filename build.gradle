@@ -1,45 +1,16 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version "${springBootVersion}"
-    id 'io.spring.dependency-management' version '1.1.6'
 }
 
 group = 'com.example.casc'
-version = '0.1.0'
+version = '0.2.0'
 
-java {
-    // Uses an installed JDK 17+; no toolchain auto-download is configured.
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
-
-repositories {
-    maven {
-        url = providers.gradleProperty('internalRepoUrl').get()
-        credentials {
-            username = providers.environmentVariable('REPO_USER').orNull
-            password = providers.environmentVariable('REPO_PASSWORD').orNull
-        }
-    }
-}
-
-dependencies {
-    // Baseline only. Optional adapters (YAML, CSV, POI, PDFBox, JSqlParser, JSoup) arrive in later phases
-    // behind separate source sets so they are not resolved unless enabled.
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-// Layout: backend/ (Java + config), frontend/ (Thymeleaf templates + static assets), infrastructure/ (launchers, config examples).
-// The frontend directory is packaged onto the classpath as templates/ and static/ and needs no separate build tool.
+// Layout: backend/ (Java), frontend/ (HTML templates + static assets), infrastructure/ (launchers, samples).
+// frontend/resources is packaged onto the classpath as /templates and /static; no frontend build tool exists.
 sourceSets {
     main {
         java.srcDirs = ['backend/src/main/java']
-        resources.srcDirs = ['backend/src/main/resources', 'frontend/resources']
+        resources.srcDirs = ['frontend/resources']
     }
     test {
         java.srcDirs = ['backend/src/test/java']
@@ -48,13 +19,26 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 17          // requires an installed JDK 17 or newer; no toolchain download is configured
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-    systemProperty 'file.encoding', 'UTF-8'
-}
-
-tasks.named('bootJar') {
+jar {
     archiveFileName = 'casc-generator.jar'
+    manifest {
+        attributes 'Main-Class': 'com.example.casc.Main',
+                   'Implementation-Version': project.version
+    }
 }
+
+// No JUnit: tests use a small built-in runner (backend/src/test/java/com/example/casc/TestRunner.java).
+tasks.named('test') { enabled = false }
+
+tasks.register('unitTests', JavaExec) {
+    group = 'verification'
+    description = 'Runs the built-in test runner.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.example.casc.TestRunner'
+    jvmArgs '-Dfile.encoding=UTF-8'
+}
+
+tasks.named('check') { dependsOn 'unitTests' }
