@@ -89,7 +89,7 @@ No repositories, plugins or libraries are needed. Linux: use a UTF-8 locale for 
 
 ## Commands
 Linux: `gradle wrapper && ./gradlew jar unitTests && java -jar build/libs/casc-generator.jar web`
-Windows: `gradle.bat wrapper` then `gradlew.bat jar unitTests` then `java -jar build\\libs\\casc-generator.jar web`
+Windows: `gradle.bat wrapper` then `gradlew.bat jar unitTests` then `java -jar build\libs\casc-generator.jar web`
 Without Gradle (compile and test directly): see `docs/VERIFICATION.md`.
 
 ## Recovery
@@ -101,5 +101,5 @@ Without Gradle (compile and test directly): see `docs/VERIFICATION.md`.
 - Port in use: `--port 9090` or `CASC_PORT`.
 - Linux permission denied on launchers: `chmod +x infrastructure/launchers/*.sh`. `bad interpreter` means CRLF endings; convert with `sed -i 's/\r$//' file`.
 - Windows file locking: close editors or viewers holding the output file; exports use a temp file then move.
-- Paths with spaces: quote them (`--input-files "C:\\my files\\specs"`).
+- Paths with spaces: quote them (`--input-files "C:\my files\specs"`).
 - If your organization later requires internal repositories, add them to `settings.gradle` (`pluginManagement`) and `build.gradle` only when you add a dependency.
