@@ -1,0 +1,48 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version "${springBootVersion}"
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.example.casc'
+version = '0.1.0'
+
+java {
+    // Uses an installed JDK 17+; no toolchain auto-download is configured.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    maven {
+        url = providers.gradleProperty('internalRepoUrl').get()
+        credentials {
+            username = providers.environmentVariable('REPO_USER').orNull
+            password = providers.environmentVariable('REPO_PASSWORD').orNull
+        }
+    }
+}
+
+dependencies {
+    // Baseline only. Optional adapters (YAML, CSV, POI, PDFBox, JSqlParser, JSoup) arrive in later phases
+    // behind separate source sets so they are not resolved unless enabled.
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'file.encoding', 'UTF-8'
+}
+
+tasks.named('bootJar') {
+    archiveFileName = 'casc-generator.jar'
+}

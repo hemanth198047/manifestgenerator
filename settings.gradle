@@ -1,0 +1,14 @@
+// Plugin resolution: internal repository only. No gradlePluginPortal() or mavenCentral() by default.
+pluginManagement {
+    repositories {
+        maven {
+            url = providers.gradleProperty('internalPluginRepoUrl').orElse('https://REPLACE-ME.internal/artifactory/gradle-plugins').get()
+            credentials {
+                username = providers.environmentVariable('REPO_USER').orNull
+                password = providers.environmentVariable('REPO_PASSWORD').orNull
+            }
+        }
+    }
+}
+
+rootProject.name = 'casc-generator'
