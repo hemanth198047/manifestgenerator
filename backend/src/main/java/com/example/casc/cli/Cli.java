@@ -125,7 +125,7 @@ public final class Cli {
                             "--url-max-bytes"), Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "web":
                     return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes", "--url-allow", "--url-timeout",
-                            "--url-max-bytes"), Set.of("--url-allow-http")), out, err);
+                            "--url-max-bytes"), Set.of("--url-allow-http", "--allow-clipboard")), out, err);
                 default:
                     err.println("Unknown command: " + args[0]);
                     usage(err);
@@ -156,7 +156,7 @@ public final class Cli {
         p.println("  version | help");
         p.println("Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.");
         p.println("Environment: CASC_BIND, CASC_PORT, CASC_INPUT_ROOT, CASC_URL_ALLOW (comma separated hosts), CASC_URL_TOKEN (bearer token).");
-        p.println("web also accepts --url-allow, --url-allow-http, --url-timeout and --url-max-bytes.");
+        p.println("web also accepts --url-allow, --url-allow-http, --url-timeout, --url-max-bytes and --allow-clipboard (shows a copy button in step 5).");
     }
 
     // ------------------------------------------------------------------ commands
@@ -410,7 +410,7 @@ public final class Cli {
         int port = number(o.get("--port", envOr("CASC_PORT", "8080")), "port", 0, 65535);
         int max = number(o.get("--max-body-bytes", String.valueOf(5 * 1024 * 1024)), "max-body-bytes", 1024, 100_000_000);
         try {
-            WebServer server = new WebServer(new WebServer.Config(bind, port, max, urlPolicy(o)));
+            WebServer server = new WebServer(new WebServer.Config(bind, port, max, urlPolicy(o), o.flags().contains("--allow-clipboard")));
             server.start();
             Runtime.getRuntime().addShutdownHook(new Thread(server::close));
             out.println("Listening on http://" + bind + ":" + server.port() + "/  (Ctrl+C to stop)");

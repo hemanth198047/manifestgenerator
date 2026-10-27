@@ -17,6 +17,8 @@ import com.example.casc.ingest.SourceInput;
 import com.example.casc.net.HttpUrlFetcher;
 import com.example.casc.net.UrlFetcher;
 import com.example.casc.net.UrlPolicy;
+import com.example.casc.wizard.SessionStore;
+import com.example.casc.wizard.WizardService;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
@@ -54,9 +56,13 @@ import java.util.regex.Pattern;
 public final class WebServer implements AutoCloseable {
 
     /** urlPolicy null (or with an empty allowlist) disables URL sources. */
-    public record Config(String bind, int port, int maxBodyBytes, UrlPolicy urlPolicy) {
+    public record Config(String bind, int port, int maxBodyBytes, UrlPolicy urlPolicy, boolean allowClipboard) {
         public Config(String bind, int port, int maxBodyBytes) {
-            this(bind, port, maxBodyBytes, null);
+            this(bind, port, maxBodyBytes, null, false);
+        }
+
+        public Config(String bind, int port, int maxBodyBytes, UrlPolicy urlPolicy) {
+            this(bind, port, maxBodyBytes, urlPolicy, false);
         }
 
         public static Config defaults() {
@@ -73,6 +79,7 @@ public final class WebServer implements AutoCloseable {
     private final ExportService export = ExportService.standard();
     private final CapabilityService capabilities = new CapabilityService();
     private final DraftPipeline pipeline;
+    private final Wizard wizard;
     private final boolean loopbackOnly;
 
     private static final class BodyTooLarge extends Exception {
@@ -90,6 +97,28 @@ public final class WebServer implements AutoCloseable {
             t.setDaemon(true);
             return t;
         });
+        this.wizard = new Wizard(new WebSupport() {
+            @Override
+            public String readBody(HttpExchange x) throws Exception {
+                return WebServer.this.readBody(x);
+            }
+
+            @Override
+            public void page(HttpExchange x, int status, String title, String template, Map<String, String> values) throws IOException {
+                WebServer.this.page(x, status, title, template, values);
+            }
+
+            @Override
+            public void send(HttpExchange x, int status, String type, byte[] body) throws IOException {
+                WebServer.this.send(x, status, type, body);
+            }
+
+            @Override
+            public void text(HttpExchange x, int status, String body) throws IOException {
+                WebServer.this.text(x, status, body);
+            }
+        }, new SessionStore(200, 2L * 60 * 60 * 1000, System::currentTimeMillis), new WizardService(pipeline), pipeline,
+                config.allowClipboard());
         server.setExecutor(pool);
         server.createContext("/", this::handle);
     }
@@ -134,6 +163,10 @@ public final class WebServer implements AutoCloseable {
         }
         if (method.equals("POST") && !sameOrigin(x)) {
             text(x, 403, "Cross-origin request rejected.");
+            return;
+        }
+        if (path.equals("/wizard") || path.startsWith("/wizard/")) {
+            wizard.handle(x, path);
             return;
         }
         switch (path) {
@@ -250,7 +283,7 @@ public final class WebServer implements AutoCloseable {
         return v;
     }
 
-    private static String banner(boolean error, String message) {
+    static String banner(boolean error, String message) {
         return "<p class=\"" + (error ? "banner-error" : "banner-ok") + "\">" + Html.esc(message) + "</p>";
     }
 
@@ -319,7 +352,7 @@ public final class WebServer implements AutoCloseable {
         return b.toString();
     }
 
-    private void section(StringBuilder b, String title, List<Finding> list, boolean showEmpty) {
+    static void section(StringBuilder b, String title, List<Finding> list, boolean showEmpty) {
         if (list.isEmpty() && !showEmpty) {
             return;
         }
@@ -367,13 +400,13 @@ public final class WebServer implements AutoCloseable {
 
     // ------------------------------------------------------------------ sources (step 1)
 
-    private static String sourceBlock(String name, String text) {
+    static String sourceBlock(String name, String text) {
         return "<div class=\"source\"><input name=\"name\" value=\"" + Html.esc(name)
                 + "\" placeholder=\"file name, e.g. schema.sql\"><textarea name=\"text\" rows=\"8\" spellcheck=\"false\">"
                 + Html.esc(text) + "</textarea></div>\n";
     }
 
-    private static String select(String name, String label, List<String> values, String selected) {
+    static String select(String name, String label, List<String> values, String selected) {
         StringBuilder b = new StringBuilder("<label>" + Html.esc(label) + " <select name=\"" + name + "\">");
         for (String v : values) {
             b.append("<option value=\"").append(Html.esc(v)).append('"').append(v.equals(selected) ? " selected" : "")
@@ -382,7 +415,7 @@ public final class WebServer implements AutoCloseable {
         return b.append("</select></label>\n").toString();
     }
 
-    private static String optionControls(Map<String, String> f) {
+    static String optionControls(Map<String, String> f) {
         boolean header = f.isEmpty() || "true".equals(f.get("hasHeader"));
         return select("dialect", "SQL dialect", new ArrayList<>(new java.util.TreeSet<>(IngestOptions.DIALECTS)), f.getOrDefault("dialect", "auto"))
                 + select("delimiter", "Delimiter", List.of("auto", "comma", "tab", "semicolon", "pipe"), f.getOrDefault("delimiter", "auto"))
@@ -421,7 +454,7 @@ public final class WebServer implements AutoCloseable {
                 + "<textarea id=\"urls\" name=\"urls\" rows=\"3\" spellcheck=\"false\"></textarea></p>";
     }
 
-    private static List<String> urlsFromForm(String text) {
+    static List<String> urlsFromForm(String text) {
         List<String> out = new ArrayList<>();
         if (text != null) {
             for (String line : text.split("\\R")) {
@@ -433,7 +466,7 @@ public final class WebServer implements AutoCloseable {
         return out;
     }
 
-    private static List<SourceInput> sourcesFromForm(Map<String, List<String>> f) {
+    static List<SourceInput> sourcesFromForm(Map<String, List<String>> f) {
         List<String> names = f.getOrDefault("name", List.of());
         List<String> texts = f.getOrDefault("text", List.of());
         List<SourceInput> out = new ArrayList<>();
@@ -451,7 +484,7 @@ public final class WebServer implements AutoCloseable {
         return out;
     }
 
-    private static Map<String, String> optionsFromForm(Map<String, String> f) {
+    static Map<String, String> optionsFromForm(Map<String, String> f) {
         Map<String, String> m = new LinkedHashMap<>();
         for (String k : List.of("dialect", "mode", "headerRow", "maxRows")) {
             if (f.get(k) != null && !f.get(k).isBlank()) {
@@ -461,11 +494,16 @@ public final class WebServer implements AutoCloseable {
         if (f.get("delimiter") != null && !f.get("delimiter").equals("auto") && !f.get("delimiter").isBlank()) {
             m.put("delimiter", f.get("delimiter"));
         }
+        for (Map.Entry<String, String> e : f.entrySet()) {
+            if (e.getKey().startsWith("map.") && e.getValue() != null && !e.getValue().isBlank()) {
+                m.put(e.getKey(), e.getValue().trim());
+            }
+        }
         m.put("hasHeader", "true".equals(f.get("hasHeader")) ? "true" : "false");
         return m;
     }
 
-    private static Map<String, String> firstValues(Map<String, List<String>> f) {
+    static Map<String, String> firstValues(Map<String, List<String>> f) {
         Map<String, String> out = new LinkedHashMap<>();
         f.forEach((k, v) -> out.put(k, v.get(0)));
         return out;
@@ -528,7 +566,7 @@ public final class WebServer implements AutoCloseable {
         showResult(x, out.export().content(), "json", null, out.unresolved());
     }
 
-    private static void fieldTable(StringBuilder h, List<RawMetadataBundle.RawField> fields) {
+    static void fieldTable(StringBuilder h, List<RawMetadataBundle.RawField> fields) {
         h.append("<table><thead><tr><th>Path</th><th>Type</th><th>Role</th><th>Description</th></tr></thead><tbody>");
         for (RawMetadataBundle.RawField f : fields) {
             h.append("<tr><td><code>").append(Html.esc(f.path())).append("</code></td><td>").append(Html.esc(f.dataType()))
@@ -537,7 +575,7 @@ public final class WebServer implements AutoCloseable {
         h.append("</tbody></table>");
     }
 
-    private String bundleHtml(RawMetadataBundle b, List<SourceInput> sources, Map<String, String> opts, boolean offerDraft) {
+    static String bundleHtml(RawMetadataBundle b, List<SourceInput> sources, Map<String, String> opts, boolean offerDraft) {
         StringBuilder h = new StringBuilder("<h2>Detected</h2>");
         h.append("<table><thead><tr><th>Source</th><th>Format</th><th>Status</th><th>Detail</th></tr></thead><tbody>");
         for (RawMetadataBundle.SourceInfo s : b.sources()) {
@@ -793,7 +831,7 @@ public final class WebServer implements AutoCloseable {
         }
     }
 
-    private static Map<String, List<String>> formMulti(String body) {
+    static Map<String, List<String>> formMulti(String body) {
         Map<String, List<String>> out = new LinkedHashMap<>();
         if (body.isEmpty()) {
             return out;
@@ -814,7 +852,7 @@ public final class WebServer implements AutoCloseable {
         return out;
     }
 
-    private static String query(HttpExchange x, String name, String fallback) {
+    static String query(HttpExchange x, String name, String fallback) {
         String q = x.getRequestURI().getRawQuery();
         if (q == null) {
             return fallback;

@@ -3,8 +3,8 @@
 Generates and validates CasC manifests for the Firmwide Data Catalog. The application uses the JDK only:
 no Spring, no Jackson, no JavaFX, no libraries of any kind. It runs on Windows and Linux from one jar.
 
-Current phase: 4 of 7 (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
-into an unreviewed draft manifest; OpenAPI JSON and allowlisted URL sources). Documents (DOCX, PDF), spreadsheets, HTML and YAML need libraries that are not part of this build. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
+Current phase: 5 of 7 (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
+into an unreviewed draft manifest; OpenAPI JSON and allowlisted URL sources, and a five-step wizard with reconciliation and project files, see `docs/WIZARD.md`). Documents (DOCX, PDF), spreadsheets, HTML and YAML need libraries that are not part of this build. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
 
 ## Layout
 

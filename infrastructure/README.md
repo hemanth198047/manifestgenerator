@@ -18,6 +18,7 @@ There is no configuration file; settings are arguments or environment variables,
 | Allow plain http | `--url-allow-http` | n/a | off (https only) |
 | URL time limit / size limit | `--url-timeout`, `--url-max-bytes` | n/a | 15 s / 5 MiB |
 | Bearer token for URLs | n/a | `CASC_URL_TOKEN` | none |
+| Copy button in wizard step 5 | `--allow-clipboard` (web) | n/a | off |
 
 Bash: `CASC_PORT=9090 java -jar build/libs/casc-generator.jar web`
 PowerShell: `$env:CASC_PORT = "9090"; java -jar build\libs\casc-generator.jar web`
@@ -37,6 +38,11 @@ Certificate validation is never weakened. For an internal certificate authority 
 (a truststore password protects integrity only and is usually public, but it is visible in the process list). Corporate proxies use the JVM properties
 `-Dhttps.proxyHost=... -Dhttps.proxyPort=... -Dhttp.nonProxyHosts=...`; proxy handling has not been exercised in this repository's tests.
 The web server fetches URLs on behalf of whoever can reach it; with an allowlist configured, put the service behind approved authentication before sharing it.
+
+## Wizard sessions
+Wizard state lives in server memory (200 sessions, 2 hours idle) and is lost on restart; users save a project file to keep it (it contains the source texts: treat it as sensitive).
+The session cookie is `HttpOnly; SameSite=Strict` without `Secure`, because the server itself speaks HTTP. Behind a TLS-terminating proxy, add `Secure` there.
+Anyone who can reach the server can create sessions, so keep the default loopback binding or put approved authentication in front before sharing it.
 
 ## Security notes
 - Loopback only by default; requests whose Host is not loopback are refused while bound to loopback.

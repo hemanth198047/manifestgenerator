@@ -37,4 +37,17 @@ Status: C = confirmed, P = provisional, U = unverified, X = conflict, A = archit
 | D-031 | U | Residual DNS rebinding window between the address check and the connection | Mitigated by the allowlist; needs approved DNS and network controls |
 | D-032 | A | URL fetching on a shared web deployment needs authentication | Fetched content is shown to the requester; see D-015 |
 | D-033 | A | OpenAPI references are followed locally only | External references are reported and never fetched |
+| D-034 | P | System key policy: kind prefix plus lower-case slug, number on collision, generated only on request | Services, elements, interfaces, entities and transformations only; global uniqueness per D-003 |
+| D-035 | A | Wizard state is held in server memory per session; nothing is persisted by the server | Users save and restore a project file explicitly; it contains the source texts, so it is sensitive |
+| D-036 | A | Session cookie: random 256-bit id, HttpOnly, SameSite=Strict, 2 hours idle, cap of 200 sessions | No Secure flag because the server speaks HTTP (set it at the TLS proxy); quoted cookie values are accepted. Unauthenticated session creation can evict other sessions |
+| D-037 | A | Every wizard POST needs the session CSRF token | In addition to the global Origin and Host checks |
+| D-038 | A | Unresolved decisions are either acknowledgeable or must-fix | Acknowledging records a review and never changes the manifest |
+| D-039 | A | PII hints are name-based prompts only | They never set or clear an attestation, PII element or category |
+| D-040 | A | Name suggestions use a small fixed abbreviation list and are applied only when ticked | They never map a column to an element automatically |
+| D-041 | A | EON ID and system name stay outside the manifest | Unchanged from D-002 |
+| D-042 | A | Tables carry no logical services | The manifest tables have no such field; services attach to interfaces, elements and entities |
+| D-043 | A | Views are listed in the wizard but not included in the manifest | The specification's treatment of views is unconfirmed |
+| D-044 | U | sourcedFromColumns is entered as raw JSON per column and passed through unverified | Shape unconfirmed (D-007); invalid JSON is an error |
+| D-045 | P | Interface payload paths: direction chooses the role (DISTRIBUTION: response, SOURCING: request) and individual paths can be excluded | Same provisional rule as D-030 |
+| D-046 | A | The step 5 preview is capped at 200,000 characters; the download is always complete | The copy button is hidden when the preview is cut |
 

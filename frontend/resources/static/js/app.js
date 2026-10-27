@@ -60,4 +60,23 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
   }
+
+  var copy = document.getElementById('copyBtn');
+  var preview = document.getElementById('previewText');
+  if (copy && preview && navigator.clipboard) {
+    copy.addEventListener('click', function () {
+      navigator.clipboard.writeText(preview.textContent).then(function () { copy.textContent = 'Copied'; });
+    });
+  }
+  var projectFile = document.getElementById('projectFile');
+  var projectText = document.getElementById('projectText');
+  if (projectFile && projectText) {
+    projectFile.addEventListener('change', function () {
+      var f = projectFile.files[0];
+      if (!f) { return; }
+      var reader = new FileReader();
+      reader.onload = function () { projectText.value = reader.result; };
+      reader.readAsText(f, 'UTF-8');
+    });
+  }
 });

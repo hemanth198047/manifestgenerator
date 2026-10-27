@@ -1,4 +1,4 @@
-# Capability Matrix (end of Phase 4)
+# Capability Matrix (end of Phase 5)
 
 Also available at runtime: web home page, `GET /api/capabilities` and `casc-generator capabilities`.
 
@@ -20,6 +20,10 @@ Also available at runtime: web home page, `GET /api/capabilities` and `casc-gene
 | OpenAPI / Swagger JSON ingestion | none | Baseline | Reported per source | Tests executed (Linux) |
 | OpenAPI YAML | YAML parser | Unavailable | Export the JSON form | n/a |
 | URL sources (JDK HttpClient, allowlist) | none | Baseline, off until hosts are allowlisted | Reported per URL | Tests executed (Linux); TLS checked with a self-signed server |
+| Five-step wizard (session state, reconciliation, governance) | none | Baseline | Reported inline | Tests executed (Linux), no real browser |
+| Project save and restore (JSON file) | none | Baseline | Strict load errors | Tests executed (Linux) |
+| Clipboard copy in step 5 | browser API | Optional, off unless `--allow-clipboard` | Button absent | Server side tested; browser behaviour not |
+| System key generation | none | Baseline, on request, provisional policy | n/a | Tests executed (Linux) |
 | Interface drafting from OpenAPI | none | Baseline, needs a chosen direction | Reported | Tests executed (Linux) |
 | XLSX, DOCX | Apache POI | Unavailable | Export to CSV/TSV/text | n/a |
 | PDF | Apache PDFBox | Unavailable | Provide a text export | n/a |
