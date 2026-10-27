@@ -1,2 +1,2 @@
-# manifestgenerator
+# manifest generator
 Manifest Generator
