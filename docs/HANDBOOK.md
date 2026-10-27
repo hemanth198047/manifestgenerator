@@ -1,13 +1,14 @@
-# Manual Recreation Handbook (Phase 3)
+# Manual Recreation Handbook (Phase 4)
 
 The project has no libraries, so recreating it needs only a JDK, Gradle and an editor.
 Do not type generated files: `gradlew`, `gradlew.bat` and `gradle/wrapper/*` come from `gradle wrapper`; `build/` and `.gradle/` are output.
 
 ## Readiness
-OS (Windows or Linux) | approved JDK 17+ with `jdk.httpserver` (standard) | approved Gradle | an editor | permission to write the project directory and run `java` and `gradle`.
-No repositories, plugins or libraries are needed. Linux: use a UTF-8 locale for non-ASCII file names.
+OS (Windows or Linux) | approved JDK 17+ with `jdk.httpserver` and `java.net.http` (standard) | approved Gradle | an editor | permission to write the project directory and run `java` and `gradle`.
+No repositories, plugins or libraries are needed. Linux: use a UTF-8 locale for non-ASCII file names. URL features additionally need network access to the allowlisted hosts and,
+for internal certificate authorities, an approved truststore.
 
-## File inventory (create in this order; about 7395 lines in 65 files)
+## File inventory (create in this order; about 9144 lines in 74 files)
 | Seq | Path | Lines | OS |
 |-----|------|-------|----|
 | 1 | `settings.gradle` | 3 | Common |
@@ -30,60 +31,69 @@ No repositories, plugins or libraries are needed. Linux: use a UTF-8 locale for 
 | 18 | `backend/src/main/java/com/example/casc/ingest/Csv.java` | 129 | Common |
 | 19 | `backend/src/main/java/com/example/casc/ingest/DelimitedStrategy.java` | 181 | Common |
 | 20 | `backend/src/main/java/com/example/casc/ingest/Dictionary.java` | 149 | Common |
-| 21 | `backend/src/main/java/com/example/casc/ingest/DraftBuilder.java` | 92 | Common |
+| 21 | `backend/src/main/java/com/example/casc/ingest/DraftBuilder.java` | 150 | Common |
 | 22 | `backend/src/main/java/com/example/casc/ingest/IngestOptions.java` | 111 | Common |
-| 23 | `backend/src/main/java/com/example/casc/ingest/IngestRequest.java` | 79 | Common |
-| 24 | `backend/src/main/java/com/example/casc/ingest/InputFiles.java` | 118 | Common |
-| 25 | `backend/src/main/java/com/example/casc/ingest/RawMetadataBundle.java` | 187 | Common |
-| 26 | `backend/src/main/java/com/example/casc/ingest/SourceIngestionService.java` | 151 | Common |
-| 27 | `backend/src/main/java/com/example/casc/ingest/SourceIngestionStrategy.java` | 13 | Common |
-| 28 | `backend/src/main/java/com/example/casc/ingest/SourceInput.java` | 37 | Common |
-| 29 | `backend/src/main/java/com/example/casc/ingest/SqlStrategy.java` | 801 | Common |
-| 30 | `backend/src/main/java/com/example/casc/ingest/SqlTokenizer.java` | 190 | Common |
-| 31 | `backend/src/main/java/com/example/casc/ingest/TextStrategy.java` | 185 | Common |
-| 32 | `backend/src/main/java/com/example/casc/app/Capability.java` | 17 | Common |
-| 33 | `backend/src/main/java/com/example/casc/app/CapabilityService.java` | 47 | Common |
-| 34 | `backend/src/main/java/com/example/casc/app/CapabilityUnavailableException.java` | 10 | Common |
-| 35 | `backend/src/main/java/com/example/casc/app/DraftPipeline.java` | 46 | Common |
-| 36 | `backend/src/main/java/com/example/casc/app/ExportResult.java` | 8 | Common |
-| 37 | `backend/src/main/java/com/example/casc/app/ExportService.java` | 91 | Common |
-| 38 | `frontend/resources/static/css/app.css` | 27 | Common |
-| 39 | `frontend/resources/static/js/app.js` | 63 | Common |
-| 40 | `frontend/resources/static/samples/sample-dictionary.csv` | 5 | Common |
-| 41 | `frontend/resources/static/samples/sample-manifest.json` | 76 | Common |
-| 42 | `frontend/resources/static/samples/sample-notes.md` | 15 | Common |
-| 43 | `frontend/resources/static/samples/sample-schema.sql` | 17 | Common |
-| 44 | `frontend/resources/templates/home.html` | 11 | Common |
-| 45 | `frontend/resources/templates/layout.html` | 26 | Common |
-| 46 | `frontend/resources/templates/sources.html` | 20 | Common |
-| 47 | `frontend/resources/templates/validate.html` | 18 | Common |
-| 48 | `backend/src/main/java/com/example/casc/web/Html.java` | 24 | Common |
-| 49 | `backend/src/main/java/com/example/casc/web/Templates.java` | 57 | Common |
-| 50 | `backend/src/main/java/com/example/casc/web/WebServer.java` | 775 | Common |
-| 51 | `backend/src/main/java/com/example/casc/Main.java` | 20 | Common |
-| 52 | `backend/src/main/java/com/example/casc/cli/Cli.java` | 407 | Common |
-| 53 | `backend/src/test/java/com/example/casc/TestKit.java` | 107 | Common |
-| 54 | `backend/src/test/java/com/example/casc/AppTests.java` | 224 | Common |
-| 55 | `backend/src/test/java/com/example/casc/DomainTests.java` | 85 | Common |
-| 56 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 239 | Common |
-| 57 | `backend/src/test/java/com/example/casc/OutputTests.java` | 107 | Common |
-| 58 | `backend/src/test/java/com/example/casc/TestRunner.java` | 32 | Common |
-| 59 | `backend/src/test/java/com/example/casc/ValidatorTests.java` | 122 | Common |
-| 60 | `backend/src/test/java/com/example/casc/ingest/IngestTests.java` | 451 | Common |
-| 61 | `infrastructure/README.md` | 34 | Common |
-| 62 | `infrastructure/launchers/run-cli.bat` | 10 | Windows only (CRLF) |
-| 63 | `infrastructure/launchers/run-cli.sh` | 10 | Linux only (LF, executable) |
-| 64 | `infrastructure/launchers/run-web.bat` | 10 | Windows only (CRLF) |
-| 65 | `infrastructure/launchers/run-web.sh` | 10 | Linux only (LF, executable) |
+| 23 | `backend/src/main/java/com/example/casc/ingest/IngestRequest.java` | 105 | Common |
+| 24 | `backend/src/main/java/com/example/casc/ingest/InputFiles.java` | 128 | Common |
+| 25 | `backend/src/main/java/com/example/casc/ingest/OpenApiStrategy.java` | 318 | Common |
+| 26 | `backend/src/main/java/com/example/casc/ingest/RawMetadataBundle.java` | 242 | Common |
+| 27 | `backend/src/main/java/com/example/casc/ingest/SourceIngestionService.java` | 156 | Common |
+| 28 | `backend/src/main/java/com/example/casc/ingest/SourceIngestionStrategy.java` | 13 | Common |
+| 29 | `backend/src/main/java/com/example/casc/ingest/SourceInput.java` | 37 | Common |
+| 30 | `backend/src/main/java/com/example/casc/ingest/SqlStrategy.java` | 801 | Common |
+| 31 | `backend/src/main/java/com/example/casc/ingest/SqlTokenizer.java` | 190 | Common |
+| 32 | `backend/src/main/java/com/example/casc/ingest/TextStrategy.java` | 185 | Common |
+| 33 | `backend/src/main/java/com/example/casc/net/HttpUrlFetcher.java` | 246 | Common |
+| 34 | `backend/src/main/java/com/example/casc/net/UrlFetcher.java` | 36 | Common |
+| 35 | `backend/src/main/java/com/example/casc/net/UrlPolicy.java` | 85 | Common |
+| 36 | `backend/src/main/java/com/example/casc/net/UrlSources.java` | 98 | Common |
+| 37 | `backend/src/main/java/com/example/casc/app/Capability.java` | 17 | Common |
+| 38 | `backend/src/main/java/com/example/casc/app/CapabilityService.java` | 52 | Common |
+| 39 | `backend/src/main/java/com/example/casc/app/CapabilityUnavailableException.java` | 10 | Common |
+| 40 | `backend/src/main/java/com/example/casc/app/DraftPipeline.java` | 66 | Common |
+| 41 | `backend/src/main/java/com/example/casc/app/ExportResult.java` | 8 | Common |
+| 42 | `backend/src/main/java/com/example/casc/app/ExportService.java` | 91 | Common |
+| 43 | `frontend/resources/static/css/app.css` | 27 | Common |
+| 44 | `frontend/resources/static/js/app.js` | 63 | Common |
+| 45 | `frontend/resources/static/samples/sample-dictionary.csv` | 5 | Common |
+| 46 | `frontend/resources/static/samples/sample-manifest.json` | 76 | Common |
+| 47 | `frontend/resources/static/samples/sample-notes.md` | 15 | Common |
+| 48 | `frontend/resources/static/samples/sample-openapi.json` | 51 | Common |
+| 49 | `frontend/resources/static/samples/sample-schema.sql` | 17 | Common |
+| 50 | `frontend/resources/templates/home.html` | 11 | Common |
+| 51 | `frontend/resources/templates/layout.html` | 26 | Common |
+| 52 | `frontend/resources/templates/sources.html` | 21 | Common |
+| 53 | `frontend/resources/templates/validate.html` | 18 | Common |
+| 54 | `backend/src/main/java/com/example/casc/Main.java` | 20 | Common |
+| 55 | `backend/src/main/java/com/example/casc/web/Html.java` | 24 | Common |
+| 56 | `backend/src/main/java/com/example/casc/web/Templates.java` | 57 | Common |
+| 57 | `backend/src/main/java/com/example/casc/web/WebServer.java` | 858 | Common |
+| 58 | `backend/src/main/java/com/example/casc/cli/Cli.java` | 451 | Common |
+| 59 | `backend/src/test/java/com/example/casc/TestKit.java` | 107 | Common |
+| 60 | `backend/src/test/java/com/example/casc/TestServer.java` | 89 | Common |
+| 61 | `backend/src/test/java/com/example/casc/AppTests.java` | 224 | Common |
+| 62 | `backend/src/test/java/com/example/casc/DomainTests.java` | 85 | Common |
+| 63 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 362 | Common |
+| 64 | `backend/src/test/java/com/example/casc/OutputTests.java` | 107 | Common |
+| 65 | `backend/src/test/java/com/example/casc/TestRunner.java` | 34 | Common |
+| 66 | `backend/src/test/java/com/example/casc/ValidatorTests.java` | 122 | Common |
+| 67 | `backend/src/test/java/com/example/casc/ingest/IngestTests.java` | 453 | Common |
+| 68 | `backend/src/test/java/com/example/casc/ingest/OpenApiTests.java` | 143 | Common |
+| 69 | `backend/src/test/java/com/example/casc/net/NetTests.java` | 233 | Common |
+| 70 | `infrastructure/README.md` | 50 | Common |
+| 71 | `infrastructure/launchers/run-cli.bat` | 10 | Windows only (CRLF) |
+| 72 | `infrastructure/launchers/run-cli.sh` | 10 | Linux only (LF, executable) |
+| 73 | `infrastructure/launchers/run-web.bat` | 10 | Windows only (CRLF) |
+| 74 | `infrastructure/launchers/run-web.sh` | 10 | Linux only (LF, executable) |
 
-`docs/` and `README.md` are optional for the build. The three sample sources under `frontend/resources/static/samples/` are used by the tests, so type them too.
+`docs/` and `README.md` are optional for the build. The four sample sources under `frontend/resources/static/samples/` are used by the tests, so type them too.
 
 ## Typing method
 1. Type one file at a time, in the order above, in chunks of 30-60 lines. Do not compile until a file is complete.
 2. Checkpoints:
    - After the Java files up to and including `app/`: compile them (`javac -d out -encoding UTF-8 <files>` or `gradle compileJava`); it must print nothing.
    - After `web/`, `cli/` and `Main.java`: the full main compile must print nothing.
-   - After the tests and the frontend files: run the tests. Expect `64 passed` (63 passed and 1 skipped without a UTF-8 locale).
+   - After the tests and the frontend files: run the tests. Expect `85 passed` (84 passed and 1 skipped without a UTF-8 locale).
 3. Common typing mistakes: a missing `}` closing a `switch` or class; `->` typed as `-` `>`; curly quotes instead of straight quotes;
    `{{` `}}` in HTML templates must stay exactly as written; a `.sh` file saved with CRLF endings; the Unicode escapes `\u2192` and `\u2013` in `TextStrategy` typed literally.
 
@@ -99,6 +109,8 @@ Without Gradle (compile and test directly): see `docs/VERIFICATION.md`.
 - Resume after a failed checkpoint: keep the files already typed and fix the first compile error; do not retype earlier files.
 - Page shows "No value for {{x}}": a template token was mistyped or a value is missing in `WebServer`.
 - Port in use: `--port 9090` or `CASC_PORT`.
+- URL fetch refused: read the message. "not in the URL allowlist" means add the host to `--url-allow` or `CASC_URL_ALLOW`; "prohibited address" cannot be allowed;
+  "TLS handshake failed" means the certificate is not trusted, so configure the approved truststore; never disable certificate checks.
 - Linux permission denied on launchers: `chmod +x infrastructure/launchers/*.sh`. `bad interpreter` means CRLF endings; convert with `sed -i 's/\r$//' file`.
 - Windows file locking: close editors or viewers holding the output file; exports use a temp file then move.
 - Paths with spaces: quote them (`--input-files "C:\my files\specs"`).

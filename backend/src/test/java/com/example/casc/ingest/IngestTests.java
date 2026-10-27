@@ -317,13 +317,15 @@ public final class IngestTests {
 
     private static void serviceTests() {
         test("service: unavailable formats are errors with an alternative, never skipped", () -> {
-            for (String name : List.of("a.xlsx", "a.docx", "a.pdf", "a.html", "a.json", "a.yaml")) {
+            for (String name : List.of("a.xlsx", "a.docx", "a.pdf", "a.html", "a.yaml", "a.yml")) {
                 RawMetadataBundle b = run(name, "x");
                 expect(b, "FORMAT_UNAVAILABLE");
                 eq("UNAVAILABLE", b.sources().get(0).status());
                 yes(b.findings().get(0).suggestion().length() > 10, "alternative is given for " + name);
             }
             contains(run("a.pdf", "x").findings().get(0).message(), "Apache PDFBox");
+            expect(run("a.json", "{\"not\":\"openapi\"}"), "OPENAPI_NOT_RECOGNISED");
+            expect(run("a.json", "{oops"), "JSON_SYNTAX");
             expect(run("a.unknown", "x"), "FORMAT_UNKNOWN");
             expect(run("noextension", "x"), "FORMAT_UNKNOWN");
         });

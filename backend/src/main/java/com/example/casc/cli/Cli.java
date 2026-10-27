@@ -8,10 +8,15 @@ import com.example.casc.app.DraftPipeline;
 import com.example.casc.app.ExportService;
 import com.example.casc.domain.Enums;
 import com.example.casc.domain.Enums.DatabaseType;
+import com.example.casc.domain.Enums.InterfaceType;
 import com.example.casc.ingest.DraftBuilder;
 import com.example.casc.ingest.IngestOptions;
 import com.example.casc.ingest.InputFiles;
 import com.example.casc.ingest.RawMetadataBundle;
+import com.example.casc.ingest.SourceInput;
+import com.example.casc.net.HttpUrlFetcher;
+import com.example.casc.net.UrlFetcher;
+import com.example.casc.net.UrlPolicy;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
@@ -116,9 +121,11 @@ public final class Cli {
                 case "ingest":
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--map", "--db-name", "--db-type", "--default-schema", "--format",
-                            "--output", "--bundle-output"), Set.of("--no-header", "--overwrite", "--json")), out, err);
+                            "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
+                            "--url-max-bytes"), Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "web":
-                    return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes"), Set.of()), out, err);
+                    return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes", "--url-allow", "--url-timeout",
+                            "--url-max-bytes"), Set.of("--url-allow-http")), out, err);
                 default:
                     err.println("Unknown command: " + args[0]);
                     usage(err);
@@ -139,14 +146,17 @@ public final class Cli {
         p.println("  web [--bind ADDR] [--port N] [--max-body-bytes N]   start the web UI (default 127.0.0.1:8080)");
         p.println("  validate --input FILE [--json]                        validate a manifest (JSON)");
         p.println("  export --input FILE --output FILE [--format json|yaml] [--overwrite] [--allow-invalid]");
-        p.println("  ingest --input-files PATH [--input-files PATH ...]   read SQL, CSV, TSV, TXT, Markdown sources");
+        p.println("  ingest --input-files PATH [--input-files PATH ...] [--url URL ...]   read SQL, CSV, TSV, TXT, Markdown, OpenAPI JSON");
+        p.println("         [--url-allow HOST ...] [--url-allow-http] [--url-timeout S] [--url-max-bytes N]   URL fetching (blocked unless hosts are allowed)");
+        p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
         p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
         p.println("  capabilities [--json]                                 list available and unavailable capabilities");
         p.println("  version | help");
         p.println("Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.");
-        p.println("Environment defaults for web: CASC_BIND, CASC_PORT.");
+        p.println("Environment: CASC_BIND, CASC_PORT, CASC_INPUT_ROOT, CASC_URL_ALLOW (comma separated hosts), CASC_URL_TOKEN (bearer token).");
+        p.println("web also accepts --url-allow, --url-allow-http, --url-timeout and --url-max-bytes.");
     }
 
     // ------------------------------------------------------------------ commands
@@ -262,10 +272,31 @@ public final class Cli {
         }
     }
 
+    private static UrlPolicy urlPolicy(Opts o) throws UsageException {
+        List<String> allow = new ArrayList<>(o.all("--url-allow"));
+        String env = System.getenv("CASC_URL_ALLOW");
+        if (env != null && !env.isBlank()) {
+            for (String e : env.split(",")) {
+                allow.add(e);
+            }
+        }
+        if (allow.stream().allMatch(String::isBlank)) {
+            return UrlPolicy.disabled();
+        }
+        try {
+            return UrlPolicy.of(allow, o.flags().contains("--url-allow-http"),
+                    number(o.get("--url-timeout", "15"), "url-timeout", 1, 300),
+                    number(o.get("--url-max-bytes", String.valueOf(5 * 1024 * 1024)), "url-max-bytes", 1024, 50_000_000));
+        } catch (IllegalArgumentException e) {
+            throw new UsageException(e.getMessage());
+        }
+    }
+
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
         List<String> paths = o.all("--input-files");
-        if (paths.isEmpty()) {
-            throw new UsageException("--input-files PATH is required (repeat the option for several files or directories).");
+        List<String> urls = o.all("--url");
+        if (paths.isEmpty() && urls.isEmpty()) {
+            throw new UsageException("--input-files PATH or --url URL is required (repeat the options for several sources).");
         }
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] pair : new String[][] {{"--dialect", "dialect"}, {"--delimiter", "delimiter"}, {"--header-row", "headerRow"},
@@ -292,9 +323,15 @@ public final class Cli {
         }
         String dbName = o.get("--db-name", null);
         String output = o.get("--output", null);
-        if ((dbName == null) != (output == null)) {
-            throw new UsageException("--db-name and --output must be given together to write a draft manifest.");
+        if (dbName != null && output == null) {
+            throw new UsageException("--output FILE is required to write a draft manifest.");
         }
+        InterfaceType direction = null;
+        if (o.get("--interface-direction", null) != null) {
+            direction = Enums.parse(InterfaceType.class, o.get("--interface-direction", null)).orElseThrow(() ->
+                    new UsageException("--interface-direction must be SOURCING or DISTRIBUTION"));
+        }
+        UrlPolicy policy = urlPolicy(o);
         DatabaseType dbType = null;
         if (o.get("--db-type", null) != null) {
             dbType = Enums.parse(DatabaseType.class, o.get("--db-type", null)).orElseThrow(() ->
@@ -302,13 +339,18 @@ public final class Cli {
                             .map(DatabaseType::label).collect(java.util.stream.Collectors.joining(", "))));
         }
         String root = o.get("--root", envOr("CASC_INPUT_ROOT", ""));
-        DraftPipeline pipeline = new DraftPipeline();
-        InputFiles.Result files = InputFiles.collect(paths, root.isBlank() ? null : Path.of(root),
-                pipeline.ingestion().knownExtensions());
-        for (String note : files.notes()) {
-            err.println("Note: " + note);
+        DraftPipeline pipeline = new DraftPipeline(policy.enabled() ? new HttpUrlFetcher(policy) : UrlFetcher.disabled());
+        List<SourceInput> sources = new ArrayList<>();
+        if (!paths.isEmpty()) {
+            InputFiles.Result files = InputFiles.collect(paths, root.isBlank() ? null : Path.of(root),
+                    pipeline.ingestion().knownExtensions());
+            for (String note : files.notes()) {
+                err.println("Note: " + note);
+            }
+            sources.addAll(files.inputs());
         }
-        RawMetadataBundle bundle = pipeline.ingest(files.inputs(), options);
+        sources.addAll(pipeline.fetch(urls));
+        RawMetadataBundle bundle = pipeline.ingest(sources, options);
         try {
             if (o.get("--bundle-output", null) != null) {
                 writeAtomically(Path.of(o.get("--bundle-output", null)), Json.write(bundle.toTree()) + "\n", o.flags().contains("--overwrite"));
@@ -323,20 +365,22 @@ public final class Cli {
             for (RawMetadataBundle.SourceInfo s : bundle.sources()) {
                 out.println(s.status() + " " + s.name() + " (" + s.format() + "): " + s.detail());
             }
-            out.println("Found " + bundle.tables().size() + " table(s)/view(s), " + bundle.terms().size() + " candidate term(s).");
+            out.println("Found " + bundle.tables().size() + " table(s)/view(s), " + bundle.interfaces().size()
+                    + " interface candidate(s), " + bundle.structures().size() + " structure candidate(s), "
+                    + bundle.terms().size() + " candidate term(s).");
             printReport(new ValidationReport(bundle.findings()), out);
         }
         if (DraftPipeline.hasErrors(bundle)) {
             err.println("Some sources failed; no draft manifest was written.");
             return INVALID;
         }
-        if (dbName == null) {
+        if (output == null) {
             return OK;
         }
         DraftPipeline.Outcome draft;
         try {
-            draft = pipeline.draft(files.inputs(), options,
-                    new DraftBuilder.SystemContext(dbName, dbType, o.get("--default-schema", null)), o.get("--format", "json"));
+            draft = pipeline.draft(sources, options,
+                    new DraftBuilder.SystemContext(dbName, dbType, o.get("--default-schema", null), direction), o.get("--format", "json"));
         } catch (CapabilityUnavailableException e) {
             throw new UsageException(e.getMessage());
         }
@@ -366,7 +410,7 @@ public final class Cli {
         int port = number(o.get("--port", envOr("CASC_PORT", "8080")), "port", 0, 65535);
         int max = number(o.get("--max-body-bytes", String.valueOf(5 * 1024 * 1024)), "max-body-bytes", 1024, 100_000_000);
         try {
-            WebServer server = new WebServer(new WebServer.Config(bind, port, max));
+            WebServer server = new WebServer(new WebServer.Config(bind, port, max, urlPolicy(o)));
             server.start();
             Runtime.getRuntime().addShutdownHook(new Thread(server::close));
             out.println("Listening on http://" + bind + ":" + server.port() + "/  (Ctrl+C to stop)");

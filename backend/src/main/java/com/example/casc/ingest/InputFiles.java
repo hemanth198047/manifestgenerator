@@ -73,7 +73,7 @@ public final class InputFiles {
                     notes.add("Skipped symbolic link: " + rel(dir, f));
                 } else if (Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS)) {
                     String ext = SourceIngestionService.extension(name);
-                    if (known.contains(ext)) {
+                    if (known.contains(ext) || (ext.equals("json") && looksLikeOpenApi(f))) {
                         files.add(f);
                     } else {
                         notes.add("Skipped file with unsupported type: " + rel(dir, f));
@@ -87,6 +87,16 @@ public final class InputFiles {
         files.sort((a, b) -> rel(dir, a).compareTo(rel(dir, b)));
         for (Path f : files) {
             add(f, rel(dir, f), out, total);
+        }
+    }
+
+    /** Directory scans include a .json file only if it mentions "openapi" or "swagger" near the start. */
+    private static boolean looksLikeOpenApi(Path f) {
+        try (java.io.InputStream in = Files.newInputStream(f, LinkOption.NOFOLLOW_LINKS)) {
+            String head = new String(in.readNBytes(65536), java.nio.charset.StandardCharsets.UTF_8);
+            return head.contains("\"openapi\"") || head.contains("\"swagger\"");
+        } catch (IOException e) {
+            return false;
         }
     }
 

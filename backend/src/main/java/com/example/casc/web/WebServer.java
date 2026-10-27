@@ -14,6 +14,9 @@ import com.example.casc.ingest.IngestRequest;
 import com.example.casc.ingest.RawMetadataBundle;
 import com.example.casc.ingest.RawMetadataBundle.RawTable;
 import com.example.casc.ingest.SourceInput;
+import com.example.casc.net.HttpUrlFetcher;
+import com.example.casc.net.UrlFetcher;
+import com.example.casc.net.UrlPolicy;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
@@ -50,7 +53,12 @@ import java.util.regex.Pattern;
  */
 public final class WebServer implements AutoCloseable {
 
-    public record Config(String bind, int port, int maxBodyBytes) {
+    /** urlPolicy null (or with an empty allowlist) disables URL sources. */
+    public record Config(String bind, int port, int maxBodyBytes, UrlPolicy urlPolicy) {
+        public Config(String bind, int port, int maxBodyBytes) {
+            this(bind, port, maxBodyBytes, null);
+        }
+
         public static Config defaults() {
             return new Config("127.0.0.1", 8080, 5 * 1024 * 1024);
         }
@@ -64,7 +72,7 @@ public final class WebServer implements AutoCloseable {
     private final ExecutorService pool;
     private final ExportService export = ExportService.standard();
     private final CapabilityService capabilities = new CapabilityService();
-    private final DraftPipeline pipeline = new DraftPipeline();
+    private final DraftPipeline pipeline;
     private final boolean loopbackOnly;
 
     private static final class BodyTooLarge extends Exception {
@@ -73,6 +81,8 @@ public final class WebServer implements AutoCloseable {
 
     public WebServer(Config config) throws IOException {
         this.config = config;
+        this.pipeline = new DraftPipeline(config.urlPolicy() != null && config.urlPolicy().enabled()
+                ? new HttpUrlFetcher(config.urlPolicy()) : UrlFetcher.disabled());
         this.loopbackOnly = InetAddress.getByName(config.bind()).isLoopbackAddress();
         this.server = HttpServer.create(new InetSocketAddress(config.bind(), config.port()), 0);
         this.pool = Executors.newFixedThreadPool(4, r -> {
@@ -386,17 +396,41 @@ public final class WebServer implements AutoCloseable {
                              String banner, String result) throws IOException {
         StringBuilder blocks = new StringBuilder();
         for (SourceInput s : sources) {
-            blocks.append(sourceBlock(s.name(), s.text() == null ? "" : s.text()));
+            if (s.readError() == null) {
+                blocks.append(sourceBlock(s.name(), s.text() == null ? "" : s.text()));
+            }
         }
-        if (sources.isEmpty()) {
+        if (blocks.length() == 0) {
             blocks.append(sourceBlock("", ""));
         }
         Map<String, String> v = new LinkedHashMap<>();
         v.put("banner", banner);
         v.put("sourceBlocks", blocks.toString());
+        v.put("urlBox", urlBox());
         v.put("optionControls", optionControls(opts));
         v.put("result", result);
         page(x, status, "Sources", "sources", v);
+    }
+
+    private String urlBox() {
+        if (!pipeline.fetcher().enabled()) {
+            return "<p class=\"notice\">URL sources are disabled: no allowed hosts are configured on this server "
+                    + "(start it with --url-allow HOST or set CASC_URL_ALLOW).</p>";
+        }
+        return "<p><label for=\"urls\">URLs to fetch, one per line (https; JSON, text, Markdown, CSV or SQL)</label><br>"
+                + "<textarea id=\"urls\" name=\"urls\" rows=\"3\" spellcheck=\"false\"></textarea></p>";
+    }
+
+    private static List<String> urlsFromForm(String text) {
+        List<String> out = new ArrayList<>();
+        if (text != null) {
+            for (String line : text.split("\\R")) {
+                if (!line.isBlank()) {
+                    out.add(line.trim());
+                }
+            }
+        }
+        return out;
     }
 
     private static List<SourceInput> sourcesFromForm(Map<String, List<String>> f) {
@@ -449,12 +483,16 @@ public final class WebServer implements AutoCloseable {
             sourcesPage(x, 400, List.of(), first, banner(true, e.getMessage()), "");
             return;
         }
-        RawMetadataBundle bundle = pipeline.ingest(sources, options);
+        List<String> urls = urlsFromForm(first.get("urls"));
+        List<SourceInput> all = new ArrayList<>(sources);
+        all.addAll(pipeline.fetch(urls));
+        RawMetadataBundle bundle = pipeline.ingest(all, options);
         boolean errors = DraftPipeline.hasErrors(bundle);
         String banner = errors
                 ? banner(true, "Some sources could not be read. Fix them or remove them before creating a draft.")
-                : banner(false, "Sources inspected. Review what was found, then create a draft manifest.");
-        sourcesPage(x, 200, sources, first, banner, bundleHtml(bundle, sources, first, !errors));
+                : banner(false, "Sources inspected" + (urls.isEmpty() ? "" : " (" + urls.size() + " URL(s) fetched; their content is shown below as sources)")
+                        + ". Review what was found, then create a draft manifest.");
+        sourcesPage(x, 200, all, first, banner, bundleHtml(bundle, all, first, !errors));
     }
 
     private void draftPost(HttpExchange x) throws Exception {
@@ -469,7 +507,10 @@ public final class WebServer implements AutoCloseable {
             String type = first.getOrDefault("databaseType", "");
             DatabaseType dt = type.isBlank() ? null : Enums.parse(DatabaseType.class, type)
                     .orElseThrow(() -> new IllegalArgumentException("Database type '" + type + "' is not an allowed value"));
-            ctx = new DraftBuilder.SystemContext(first.getOrDefault("databaseLogicalName", ""), dt, first.getOrDefault("defaultSchema", ""));
+            String dir = first.getOrDefault("interfaceDirection", "");
+            Enums.InterfaceType idir = dir.isBlank() ? null : Enums.parse(Enums.InterfaceType.class, dir)
+                    .orElseThrow(() -> new IllegalArgumentException("Interface direction must be SOURCING or DISTRIBUTION"));
+            ctx = new DraftBuilder.SystemContext(first.getOrDefault("databaseLogicalName", ""), dt, first.getOrDefault("defaultSchema", ""), idir);
         } catch (IllegalArgumentException e) {
             sourcesPage(x, 400, List.of(), first, banner(true, e.getMessage()), "");
             return;
@@ -485,6 +526,15 @@ public final class WebServer implements AutoCloseable {
             return;
         }
         showResult(x, out.export().content(), "json", null, out.unresolved());
+    }
+
+    private static void fieldTable(StringBuilder h, List<RawMetadataBundle.RawField> fields) {
+        h.append("<table><thead><tr><th>Path</th><th>Type</th><th>Role</th><th>Description</th></tr></thead><tbody>");
+        for (RawMetadataBundle.RawField f : fields) {
+            h.append("<tr><td><code>").append(Html.esc(f.path())).append("</code></td><td>").append(Html.esc(f.dataType()))
+                    .append("</td><td>").append(Html.esc(f.role())).append("</td><td>").append(Html.esc(f.description())).append("</td></tr>");
+        }
+        h.append("</tbody></table>");
     }
 
     private String bundleHtml(RawMetadataBundle b, List<SourceInput> sources, Map<String, String> opts, boolean offerDraft) {
@@ -513,6 +563,31 @@ public final class WebServer implements AutoCloseable {
                         .append(Html.esc(c.description())).append("</td><td>").append(Html.esc(c.location())).append("</td></tr>");
             }
             h.append("</tbody></table></details>");
+        }
+        if (!b.interfaces().isEmpty()) {
+            h.append("<h3>Interface candidates (").append(b.interfaces().size())
+                    .append(") &ndash; direction is not inferred; classify during review</h3>");
+            for (RawMetadataBundle.RawInterface i : b.interfaces()) {
+                h.append("<details><summary>").append(Html.esc(i.name())).append(" &middot; ").append(Html.esc(i.method() + " " + i.path()))
+                        .append(" &middot; ").append(i.fields().size()).append(" field(s)</summary>");
+                if (i.description() != null) {
+                    h.append("<p>").append(Html.esc(i.description())).append("</p>");
+                }
+                fieldTable(h, i.fields());
+                h.append("</details>");
+            }
+        }
+        if (!b.structures().isEmpty()) {
+            h.append("<h3>Structure candidates (").append(b.structures().size()).append(") &ndash; not relational tables</h3>");
+            for (RawMetadataBundle.RawStructure st : b.structures()) {
+                h.append("<details><summary>").append(Html.esc(st.name())).append(" &middot; ").append(st.fields().size())
+                        .append(" field(s)</summary>");
+                if (st.description() != null) {
+                    h.append("<p>").append(Html.esc(st.description())).append("</p>");
+                }
+                fieldTable(h, st.fields());
+                h.append("</details>");
+            }
         }
         if (!b.terms().isEmpty()) {
             h.append("<h3>Candidate terms (").append(b.terms().size()).append(") &ndash; review required</h3><table><thead><tr><th>Term</th><th>Description</th><th>Location</th></tr></thead><tbody>");
@@ -560,6 +635,10 @@ public final class WebServer implements AutoCloseable {
             h.append("<p><label>Database logical name (TAI) <input name=\"databaseLogicalName\" value=\"")
                     .append(Html.esc(opts.getOrDefault("databaseLogicalName", ""))).append("\"></label> ");
             h.append(select("databaseType", "Database type", types, opts.getOrDefault("databaseType", "")));
+            if (!b.interfaces().isEmpty()) {
+                h.append(select("interfaceDirection", "Interface direction", List.of("", "SOURCING", "DISTRIBUTION"),
+                        opts.getOrDefault("interfaceDirection", "")));
+            }
             h.append("<label>Default schema (for tables without one) <input name=\"defaultSchema\" value=\"")
                     .append(Html.esc(opts.getOrDefault("defaultSchema", ""))).append("\"></label> ");
             h.append("<button type=\"submit\">Create draft</button></p></form>");
@@ -625,7 +704,9 @@ public final class WebServer implements AutoCloseable {
             json(x, 400, error(e.getMessage()));
             return;
         }
-        RawMetadataBundle bundle = pipeline.ingest(req.sources(), req.options());
+        List<SourceInput> all = new ArrayList<>(req.sources());
+        all.addAll(pipeline.fetch(req.urls()));
+        RawMetadataBundle bundle = pipeline.ingest(all, req.options());
         Map<String, Object> t = bundle.toTree();
         t.put("hasErrors", DraftPipeline.hasErrors(bundle));
         json(x, 200, t);
@@ -645,7 +726,9 @@ public final class WebServer implements AutoCloseable {
         }
         DraftPipeline.Outcome out;
         try {
-            out = pipeline.draft(req.sources(), req.options(), req.system(), format);
+            List<SourceInput> all = new ArrayList<>(req.sources());
+            all.addAll(pipeline.fetch(req.urls()));
+            out = pipeline.draft(all, req.options(), req.system(), format);
         } catch (CapabilityUnavailableException e) {
             json(x, 400, error(e.getMessage()));
             return;

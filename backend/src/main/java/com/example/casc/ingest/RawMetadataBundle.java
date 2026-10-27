@@ -12,7 +12,8 @@ import java.util.Map;
  * Nothing here is serialized into a manifest directly.
  */
 public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables, List<RawTerm> terms,
-                                List<RawNote> notes, List<LineageHint> lineage, List<Finding> findings) {
+                                List<RawNote> notes, List<LineageHint> lineage, List<RawInterface> interfaces,
+                                List<RawStructure> structures, List<Finding> findings) {
 
     /** status: INGESTED, UNAVAILABLE or REJECTED. */
     public record SourceInfo(String name, String format, String status, String detail) {}
@@ -33,6 +34,16 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
     /** Simple single-table view lineage. A hint for review, never serialized into a manifest. */
     public record LineageHint(String target, String source, String origin, String location) {}
 
+    /** role is "request" or "response" for interface fields and null for structure fields. */
+    public record RawField(String path, String dataType, String description, String role) {}
+
+    /** A candidate interface, for example one API operation. Its SOURCING/DISTRIBUTION direction is NOT inferred. */
+    public record RawInterface(String name, String method, String path, String description, List<RawField> fields,
+                               String source, String location) {}
+
+    /** A candidate data structure (for example an API schema). Not a relational table. */
+    public record RawStructure(String name, String description, List<RawField> fields, String source, String location) {}
+
     public static RawMetadataBundle merge(List<RawMetadataBundle> parts) {
         Builder b = new Builder();
         for (RawMetadataBundle p : parts) {
@@ -41,6 +52,8 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
             b.terms.addAll(p.terms);
             b.notes.addAll(p.notes);
             b.lineage.addAll(p.lineage);
+            b.interfaces.addAll(p.interfaces);
+            b.structures.addAll(p.structures);
             b.findings.addAll(p.findings);
         }
         return b.build();
@@ -104,8 +117,37 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
             o.put("location", x.location());
             return o;
         }));
+        t.put("interfaces", map(interfaces, x -> {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("name", x.name());
+            put(o, "method", x.method());
+            put(o, "path", x.path());
+            put(o, "description", x.description());
+            o.put("source", x.source());
+            o.put("location", x.location());
+            o.put("fields", map(x.fields(), RawMetadataBundle::fieldTree));
+            return o;
+        }));
+        t.put("structures", map(structures, x -> {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("name", x.name());
+            put(o, "description", x.description());
+            o.put("source", x.source());
+            o.put("location", x.location());
+            o.put("fields", map(x.fields(), RawMetadataBundle::fieldTree));
+            return o;
+        }));
         t.put("findings", map(findings, Finding::toTree));
         return t;
+    }
+
+    private static Object fieldTree(RawField f) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("path", f.path());
+        put(o, "dataType", f.dataType());
+        put(o, "description", f.description());
+        put(o, "role", f.role());
+        return o;
     }
 
     private static void put(Map<String, Object> o, String k, Object v) {
@@ -129,6 +171,8 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
         final List<RawTerm> terms = new ArrayList<>();
         final List<RawNote> notes = new ArrayList<>();
         final List<LineageHint> lineage = new ArrayList<>();
+        final List<RawInterface> interfaces = new ArrayList<>();
+        final List<RawStructure> structures = new ArrayList<>();
         final List<Finding> findings = new ArrayList<>();
 
         public Builder source(String name, String format, String status, String detail) {
@@ -153,6 +197,16 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
 
         public Builder lineage(LineageHint h) {
             lineage.add(h);
+            return this;
+        }
+
+        public Builder iface(RawInterface i) {
+            interfaces.add(i);
+            return this;
+        }
+
+        public Builder structure(RawStructure x) {
+            structures.add(x);
             return this;
         }
 
@@ -181,7 +235,8 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
 
         public RawMetadataBundle build() {
             return new RawMetadataBundle(List.copyOf(sources), List.copyOf(tables), List.copyOf(terms),
-                    List.copyOf(notes), List.copyOf(lineage), List.copyOf(findings));
+                    List.copyOf(notes), List.copyOf(lineage), List.copyOf(interfaces), List.copyOf(structures),
+                    List.copyOf(findings));
         }
     }
 }

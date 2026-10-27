@@ -9,20 +9,24 @@ import java.util.List;
 import java.util.Map;
 
 /** JSON request shared by the REST API and agent tools: sources, options and optional system context. */
-public record IngestRequest(List<SourceInput> sources, IngestOptions options, DraftBuilder.SystemContext system) {
+public record IngestRequest(List<SourceInput> sources, List<String> urls, IngestOptions options,
+                            DraftBuilder.SystemContext system) {
 
     /**
-     * {"sources":[{"name":"a.csv","text":"..."}],
+     * {"sources":[{"name":"a.csv","text":"..."}], "urls":["https://wiki.corp.example/spec.json"],
      *  "options":{"dialect":"oracle","hasHeader":true,"maxRows":500,"map.table":"Tbl"},
-     *  "system":{"databaseLogicalName":"TRADE_DB","databaseType":"PostgreSQL","defaultSchema":"public"}}
+     *  "system":{"databaseLogicalName":"TRADE_DB","databaseType":"PostgreSQL","defaultSchema":"public",
+     *           "interfaceDirection":"DISTRIBUTION"}}
+     * At least one source or URL is required.
      */
     public static IngestRequest fromTree(Object tree) {
         Map<String, Object> root = object(tree, "request");
         List<SourceInput> sources = new ArrayList<>();
         Object s = root.get("sources");
-        if (!(s instanceof List<?> list)) {
+        if (s != null && !(s instanceof List<?>)) {
             throw new IllegalArgumentException("'sources' must be an array");
         }
+        List<?> list = s == null ? List.of() : (List<?>) s;
         for (int i = 0; i < list.size(); i++) {
             Map<String, Object> o = object(list.get(i), "sources[" + i + "]");
             if (!(o.get("name") instanceof String name) || name.isBlank()) {
@@ -32,6 +36,22 @@ public record IngestRequest(List<SourceInput> sources, IngestOptions options, Dr
                 throw new IllegalArgumentException("sources[" + i + "].text must be a string");
             }
             sources.add(SourceInput.of(name, text));
+        }
+        List<String> urls = new ArrayList<>();
+        Object u = root.get("urls");
+        if (u != null) {
+            if (!(u instanceof List<?> ul)) {
+                throw new IllegalArgumentException("'urls' must be an array of strings");
+            }
+            for (int i = 0; i < ul.size(); i++) {
+                if (!(ul.get(i) instanceof String us) || us.isBlank()) {
+                    throw new IllegalArgumentException("urls[" + i + "] must be a non-blank string");
+                }
+                urls.add(us);
+            }
+        }
+        if (s == null && urls.isEmpty()) {
+            throw new IllegalArgumentException("'sources' or 'urls' is required");
         }
         Map<String, String> opts = new LinkedHashMap<>();
         if (root.get("options") != null) {
@@ -53,9 +73,15 @@ public record IngestRequest(List<SourceInput> sources, IngestOptions options, Dr
                 dt = Enums.parse(DatabaseType.class, type).orElseThrow(() ->
                         new IllegalArgumentException("system.databaseType '" + type + "' is not an allowed value"));
             }
-            ctx = new DraftBuilder.SystemContext(str(sys, "databaseLogicalName"), dt, str(sys, "defaultSchema"));
+            String dir = str(sys, "interfaceDirection");
+            com.example.casc.domain.Enums.InterfaceType idir = null;
+            if (dir != null) {
+                idir = Enums.parse(com.example.casc.domain.Enums.InterfaceType.class, dir).orElseThrow(() ->
+                        new IllegalArgumentException("system.interfaceDirection must be SOURCING or DISTRIBUTION"));
+            }
+            ctx = new DraftBuilder.SystemContext(str(sys, "databaseLogicalName"), dt, str(sys, "defaultSchema"), idir);
         }
-        return new IngestRequest(sources, IngestOptions.fromMap(opts), ctx);
+        return new IngestRequest(sources, urls, IngestOptions.fromMap(opts), ctx);
     }
 
     private static String str(Map<String, Object> m, String k) {

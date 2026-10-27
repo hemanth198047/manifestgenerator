@@ -14,6 +14,10 @@ There is no configuration file; settings are arguments or environment variables,
 | Port | `--port` | `CASC_PORT` | `8080` |
 | Max request body | `--max-body-bytes` | n/a | 5 MiB |
 | Input root for `ingest` | `--root` | `CASC_INPUT_ROOT` | none (any readable path) |
+| Allowed URL hosts | `--url-allow` (repeatable) | `CASC_URL_ALLOW` (comma separated) | none: URL sources are disabled |
+| Allow plain http | `--url-allow-http` | n/a | off (https only) |
+| URL time limit / size limit | `--url-timeout`, `--url-max-bytes` | n/a | 15 s / 5 MiB |
+| Bearer token for URLs | n/a | `CASC_URL_TOKEN` | none |
 
 Bash: `CASC_PORT=9090 java -jar build/libs/casc-generator.jar web`
 PowerShell: `$env:CASC_PORT = "9090"; java -jar build\libs\casc-generator.jar web`
@@ -23,10 +27,22 @@ Bash:       `./infrastructure/launchers/run-cli.sh ingest --input-files ./specs 
 PowerShell: `.\infrastructure\launchers\run-cli.bat ingest --input-files .\specs --root .\specs --db-name TRADE_DB --default-schema trade --output .\manifest.json`
 Paths with spaces must be quoted. See `docs/INGESTION.md` for options and exit codes.
 
+## URL sources, proxies and truststores
+URL fetching is off until hosts are allowlisted. Examples:
+Bash:       `CASC_URL_ALLOW=wiki.corp.example,*.docs.corp.example ./infrastructure/launchers/run-cli.sh ingest --url https://wiki.corp.example/api/trade.json --interface-direction DISTRIBUTION --output ./m.json`
+PowerShell: `$env:CASC_URL_ALLOW = "wiki.corp.example"; .\infrastructure\launchers\run-cli.bat ingest --url https://wiki.corp.example/api/trade.json --output .\m.json`
+Keep the token out of command lines and logs: `export CASC_URL_TOKEN=...` (Bash) or `$env:CASC_URL_TOKEN = "..."` (PowerShell), set from your secret store.
+Certificate validation is never weakened. For an internal certificate authority use an approved truststore through the standard JVM properties, passed with `JAVA_OPTS`:
+`JAVA_OPTS="-Djavax.net.ssl.trustStore=/etc/casc/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=<store password>"`
+(a truststore password protects integrity only and is usually public, but it is visible in the process list). Corporate proxies use the JVM properties
+`-Dhttps.proxyHost=... -Dhttps.proxyPort=... -Dhttp.nonProxyHosts=...`; proxy handling has not been exercised in this repository's tests.
+The web server fetches URLs on behalf of whoever can reach it; with an allowlist configured, put the service behind approved authentication before sharing it.
+
 ## Security notes
 - Loopback only by default; requests whose Host is not loopback are refused while bound to loopback.
 - POST requests carrying a different Origin are refused.
 - `ingest` reads only the files you name; with `--root` they must resolve inside that directory (symbolic links are resolved first). The web UI never reads server files; it only receives pasted or uploaded text.
+- URL fetching refuses loopback, link-local (cloud metadata) and other prohibited addresses even for allowlisted hosts, re-checks every redirect and limits time and size.
 - No authentication. Binding to another address prints a warning; put the service behind approved access control.
 - Linux: use a UTF-8 locale (for example `LANG=C.UTF-8`) if input files have non-ASCII names.
 

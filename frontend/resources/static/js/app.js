@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   if (holder && samples) {
     samples.addEventListener('click', function () {
-      ['sample-schema.sql', 'sample-dictionary.csv', 'sample-notes.md'].forEach(function (n) {
+      ['sample-schema.sql', 'sample-dictionary.csv', 'sample-notes.md', 'sample-openapi.json'].forEach(function (n) {
         fetch('/static/samples/' + n).then(function (r) { return r.text(); }).then(function (t) { addSource(n, t); });
       });
     });

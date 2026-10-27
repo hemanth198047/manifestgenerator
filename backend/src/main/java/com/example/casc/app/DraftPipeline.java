@@ -6,6 +6,8 @@ import com.example.casc.ingest.RawMetadataBundle;
 import com.example.casc.ingest.SourceIngestionService;
 import com.example.casc.ingest.SourceInput;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
+import com.example.casc.net.UrlFetcher;
+import com.example.casc.net.UrlSources;
 import com.example.casc.validation.Finding;
 import com.example.casc.validation.Severity;
 import java.util.List;
@@ -14,6 +16,24 @@ import java.util.List;
 public final class DraftPipeline {
     private final SourceIngestionService ingestion = SourceIngestionService.standard();
     private final ExportService export = ExportService.standard();
+    private final UrlFetcher fetcher;
+
+    public DraftPipeline() {
+        this(UrlFetcher.disabled());
+    }
+
+    public DraftPipeline(UrlFetcher fetcher) {
+        this.fetcher = fetcher;
+    }
+
+    public UrlFetcher fetcher() {
+        return fetcher;
+    }
+
+    /** Fetches URLs under the configured policy; failures come back as unreadable sources, never as silence. */
+    public List<SourceInput> fetch(List<String> urls) {
+        return urls.isEmpty() ? List.of() : UrlSources.fetchAll(urls, fetcher);
+    }
 
     /** export is null when ingestion failed or the draft could not be built; the findings say why. */
     public record Outcome(RawMetadataBundle bundle, List<Finding> draftFindings, ExportResult export, List<String> unresolved) {}

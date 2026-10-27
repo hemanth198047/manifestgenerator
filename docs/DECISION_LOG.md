@@ -28,4 +28,13 @@ Status: C = confirmed, P = provisional, U = unverified, X = conflict, A = archit
 | D-022 | U | View lineage hints are never written to manifests | The sourcedFromColumns shape is unverified (D-007) |
 | D-023 | A | The draft's unresolved decision is shown when the draft is created | The UI is stateless until the Phase 5 wizard state exists, so later validation posts do not repeat it |
 | D-024 | A | JSON and YAML files are skipped in directory scans but rejected as explicit sources | Avoids failing a scan because of unrelated configuration files |
+| D-025 | A | URL fetching is allowlist-only; an empty allowlist disables it | Entries: host, host:port, *.domain; default ports only unless a port is listed |
+| D-026 | A | Prohibited destinations are refused even when allowlisted | Loopback, link-local (169.254.169.254), unspecified, multicast, Alibaba and AWS IPv6 metadata, metadata host names. Private ranges are allowed only for allowlisted hosts |
+| D-027 | A | Redirects are re-validated per hop; no https to http downgrade; at most 3; bearer token only to the original host | Token comes from CASC_URL_TOKEN and is never logged |
+| D-028 | A | TLS uses the JVM default trust with no custom SSLContext | Approved truststores and proxies use javax.net.ssl.* and https.proxy* properties. Verified against a self-signed server: refused by default, accepted with an approved truststore |
+| D-029 | A | Only formats readable without a parser are accepted from URLs | JSON, text, Markdown, CSV, TSV, SQL. HTML, YAML, Office and PDF are reported. Confluence is not supported natively |
+| D-030 | P | OpenAPI operations are candidate interfaces; schemas are candidate structures; direction is never inferred | Draft lists response fields for DISTRIBUTION and request fields for SOURCING when the user chooses a direction. This selection rule is provisional |
+| D-031 | U | Residual DNS rebinding window between the address check and the connection | Mitigated by the allowlist; needs approved DNS and network controls |
+| D-032 | A | URL fetching on a shared web deployment needs authentication | Fetched content is shown to the requester; see D-015 |
+| D-033 | A | OpenAPI references are followed locally only | External references are reported and never fetched |
 

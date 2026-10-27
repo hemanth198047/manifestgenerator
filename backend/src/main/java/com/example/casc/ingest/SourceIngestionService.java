@@ -38,11 +38,15 @@ public final class SourceIngestionService {
                 "Save the content as Markdown or text, or use a JSON API when URL support arrives.");
         UNAVAILABLE.put("html", html);
         UNAVAILABLE.put("htm", html);
-        Unavailable data = new Unavailable("JSON/YAML", "the OpenAPI adapter (planned) or an approved YAML parser",
-                "OpenAPI JSON support is planned. To check an existing manifest, use the validate command instead.");
-        UNAVAILABLE.put("json", data);
-        UNAVAILABLE.put("yaml", data);
-        UNAVAILABLE.put("yml", data);
+        Unavailable yaml = new Unavailable("YAML", "an approved YAML parser (for example Jackson YAML)",
+                "Convert the file to JSON (for OpenAPI, export the JSON form from Swagger UI or the API gateway) and add that instead.");
+        UNAVAILABLE.put("yaml", yaml);
+        UNAVAILABLE.put("yml", yaml);
+    }
+
+    /** True for document formats that are known but cannot be read in this build. */
+    public static boolean isUnavailableExtension(String ext) {
+        return UNAVAILABLE.containsKey(ext);
     }
 
     private final Map<String, SourceIngestionStrategy> byExtension = new HashMap<>();
@@ -56,11 +60,11 @@ public final class SourceIngestionService {
     }
 
     public static SourceIngestionService standard() {
-        return new SourceIngestionService(List.of(new DelimitedStrategy(), new TextStrategy(), new SqlStrategy()));
+        return new SourceIngestionService(List.of(new DelimitedStrategy(), new TextStrategy(), new SqlStrategy(), new OpenApiStrategy()));
     }
 
     /** Lower-case extension of the last path segment, without the dot; empty if none. */
-    static String extension(String name) {
+    public static String extension(String name) {
         String n = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
         int dot = n.lastIndexOf('.');
         return dot < 0 ? "" : n.substring(dot + 1).toLowerCase(Locale.ROOT);
@@ -71,14 +75,15 @@ public final class SourceIngestionService {
     }
 
     /**
-     * Extensions considered when scanning a directory: supported ones plus document formats that are known but
-     * unavailable (so they are reported, not skipped). JSON/YAML files are skipped in directory scans because
-     * configuration files are common; naming one explicitly is still reported as unavailable.
+     * Extensions considered when scanning a directory: supported ones (except json, which InputFiles accepts only when
+     * the file looks like OpenAPI) plus document formats that are known but unavailable, so they are reported and not skipped.
+     * YAML files are skipped in directory scans because configuration files are common; naming one explicitly is reported.
      */
     public Set<String> knownExtensions() {
         Set<String> s = new TreeSet<>(byExtension.keySet());
+        s.remove("json");
         for (Map.Entry<String, Unavailable> e : UNAVAILABLE.entrySet()) {
-            if (!e.getValue().format().equals("JSON/YAML")) {
+            if (!e.getValue().format().equals("YAML")) {
                 s.add(e.getKey());
             }
         }
@@ -146,6 +151,6 @@ public final class SourceIngestionService {
         }
         List<Finding> all = new ArrayList<>(m.findings());
         all.addAll(extra);
-        return new RawMetadataBundle(m.sources(), m.tables(), m.terms(), m.notes(), m.lineage(), all);
+        return new RawMetadataBundle(m.sources(), m.tables(), m.terms(), m.notes(), m.lineage(), m.interfaces(), m.structures(), all);
     }
 }

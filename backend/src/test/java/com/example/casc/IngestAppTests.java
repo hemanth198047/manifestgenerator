@@ -4,6 +4,7 @@ import static com.example.casc.TestKit.*;
 
 import com.example.casc.cli.Cli;
 import com.example.casc.json.Json;
+import com.example.casc.net.UrlPolicy;
 import com.example.casc.web.WebServer;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -203,7 +204,7 @@ final class IngestAppTests {
             try {
                 eq(Cli.USAGE, cli("ingest").code());
                 eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-name", "X").code());
-                eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--output", "x.json").code());
+                eq(Cli.INVALID, cli("ingest", "--input-files", dir.toString(), "--output", dir.resolve("x.json").toString()).code());
                 eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-type", "Mongo").code());
                 eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--map", "nonsense").code());
                 eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--dialect", "mysql").code());
@@ -233,6 +234,128 @@ final class IngestAppTests {
             } finally {
                 deleteTree(dir);
                 deleteTree(other);
+            }
+        });
+
+        test("web: URL sources are fetched under the allowlist, escaped, and never echo the query", () -> {
+            String spec = sample("sample-openapi.json").replace("List trades", "<script>alert(1)</script> trades");
+            try (TestServer ts = TestServer.start(Map.of("/spec.json", TestServer.Resp.ok("application/json", spec),
+                    "/page", TestServer.Resp.ok("text/html", "<p>x</p>"), "/notes", TestServer.Resp.ok("text/markdown", "# T\n- TRADE_QTY: Quantity\n")))) {
+                int port = ts.port();
+                UrlPolicy policy = new UrlPolicy(List.of("127.0.0.1:" + port), true, true, 3, 1_000_000, 3);
+                try (WebServer server = new WebServer(new WebServer.Config("127.0.0.1", 0, 1_000_000, policy))) {
+                    server.start();
+                    String base = "http://127.0.0.1:" + server.port();
+                    HttpClient http = HttpClient.newHttpClient();
+                    contains(http.send(HttpRequest.newBuilder(URI.create(base + "/sources")).GET().build(), BodyHandlers.ofString()).body(), "URLs to fetch");
+                    String f = "application/x-www-form-urlencoded";
+                    HttpResponse<String> ok = post(http, base + "/sources", form("urls", "http://127.0.0.1:" + port + "/spec.json?token=SECRET\nhttp://127.0.0.1:" + port + "/notes",
+                            "hasHeader", "true"), f);
+                    eq(200, ok.statusCode());
+                    contains(ok.body(), "Interface candidates");
+                    contains(ok.body(), "listTrades");
+                    contains(ok.body(), "Candidate terms");
+                    contains(ok.body(), "Create a draft manifest");
+                    contains(ok.body(), "interfaceDirection");
+                    excludes(ok.body(), "SECRET");
+                    excludes(ok.body(), "<script>alert(1)");
+                    contains(ok.body(), "&lt;script&gt;alert(1)");
+
+                    HttpResponse<String> draft = post(http, base + "/draft", form("name", "127.0.0.1:" + port + "/spec.json", "text", spec,
+                            "interfaceDirection", "DISTRIBUTION", "hasHeader", "true"), f);
+                    eq(200, draft.statusCode());
+                    contains(draft.body(), "&quot;interfaces&quot;");
+                    contains(draft.body(), "UNRESOLVED_DECISION");
+
+                    HttpResponse<String> html = post(http, base + "/sources", form("urls", "http://127.0.0.1:" + port + "/page", "hasHeader", "true"), f);
+                    contains(html.body(), "FORMAT_UNAVAILABLE");
+                    excludes(html.body(), "Create a draft manifest");
+                    contains(post(http, base + "/sources", form("urls", "http://127.0.0.1:" + port + "/missing", "hasHeader", "true"), f).body(), "HTTP 404");
+                    contains(post(http, base + "/sources", form("urls", "http://127.0.0.2:" + port + "/spec.json", "hasHeader", "true"), f).body(), "not in the URL allowlist");
+
+                    String req = "{\"urls\":[\"http://127.0.0.1:" + port + "/spec.json\"],\"system\":{\"interfaceDirection\":\"DISTRIBUTION\"}}";
+                    Map<?, ?> ingested = (Map<?, ?>) Json.parse(post(http, base + "/api/ingest", req, "application/json").body());
+                    eq(2, ((List<?>) ingested.get("interfaces")).size());
+                    eq(2, ((List<?>) ingested.get("structures")).size());
+                    HttpResponse<String> d = post(http, base + "/api/draft", req, "application/json");
+                    eq(200, d.statusCode());
+                    contains((String) ((Map<?, ?>) Json.parse(d.body())).get("content"), "\"interfaces\"");
+                    eq(400, post(http, base + "/api/ingest", "{}", "application/json").statusCode());
+                }
+            }
+        });
+
+        test("web: URL sources are refused when no hosts are allowed", () -> {
+            try (WebServer server = new WebServer(new WebServer.Config("127.0.0.1", 0, 1_000_000))) {
+                server.start();
+                String base = "http://127.0.0.1:" + server.port();
+                HttpClient http = HttpClient.newHttpClient();
+                contains(http.send(HttpRequest.newBuilder(URI.create(base + "/sources")).GET().build(), BodyHandlers.ofString()).body(), "URL sources are disabled");
+                HttpResponse<String> r = post(http, base + "/sources", form("urls", "https://wiki.example/spec.json", "hasHeader", "true"),
+                        "application/x-www-form-urlencoded");
+                contains(r.body(), "URL sources are disabled");
+                contains(r.body(), "SOURCE_UNREADABLE");
+                Map<?, ?> api = (Map<?, ?>) Json.parse(post(http, base + "/api/ingest", "{\"urls\":[\"https://wiki.example/x.json\"]}", "application/json").body());
+                eq(Boolean.TRUE, api.get("hasErrors"));
+            }
+        });
+
+        test("cli: URL options are validated and the block list holds", () -> {
+            Run none = cli("ingest", "--url", "https://wiki.example/spec.json");
+            eq(Cli.INVALID, none.code());
+            contains(none.out(), "URL sources are disabled");
+            eq(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "bad entry").code());
+            eq(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "x.example", "--url-timeout", "0").code());
+            Run loop = cli("ingest", "--url", "http://127.0.0.1:1/a.json", "--url-allow", "127.0.0.1:1", "--url-allow-http");
+            eq(Cli.INVALID, loop.code());
+            contains(loop.out(), "prohibited address");
+            Run meta = cli("ingest", "--url", "https://169.254.169.254/latest/meta-data", "--url-allow", "169.254.169.254");
+            eq(Cli.INVALID, meta.code());
+            contains(meta.out(), "prohibited address");
+            Run cred = cli("ingest", "--url", "https://user:pw@x.example/a.json", "--url-allow", "x.example");
+            eq(Cli.INVALID, cred.code());
+            contains(cred.out(), "embedded credentials");
+            eq(Cli.USAGE, cli("ingest").code());
+        });
+
+        test("cli: OpenAPI sources draft interfaces only with a direction", () -> {
+            Path dir = tempDir("casc api ");
+            try {
+                Path api = dir.resolve("trade api.json");
+                Files.writeString(api, sample("sample-openapi.json"), StandardCharsets.UTF_8);
+                Run inspect = cli("ingest", "--input-files", api.toString());
+                eq(Cli.OK, inspect.code());
+                contains(inspect.out(), "2 interface candidate(s), 2 structure candidate(s)");
+                Path out = dir.resolve("m.yaml");
+                Run noDir = cli("ingest", "--input-files", api.toString(), "--output", out.toString());
+                eq(Cli.INVALID, noDir.code());
+                contains(noDir.err(), "DRAFT_DIRECTION_REQUIRED");
+                yes(!Files.exists(out), "nothing written");
+                Run ok = cli("ingest", "--input-files", api.toString(), "--interface-direction", "DISTRIBUTION", "--output", out.toString(), "--format", "yaml");
+                eq(Cli.OK, ok.code());
+                String y = Files.readString(out, StandardCharsets.UTF_8);
+                contains(y, "interfaces:");
+                contains(y, "type: \"DISTRIBUTION\"");
+                contains(y, "physicalName: \"client.clientId\"");
+                eq(Cli.USAGE, cli("ingest", "--input-files", api.toString(), "--interface-direction", "BOTH").code());
+                eq(List.of("m.yaml", "trade api.json"), names(dir));
+            } finally {
+                deleteTree(dir);
+            }
+        });
+
+        test("input files: directory scans take OpenAPI JSON and skip other JSON", () -> {
+            Path dir = tempDir("casc scan ");
+            try {
+                Files.writeString(dir.resolve("api.json"), sample("sample-openapi.json"), StandardCharsets.UTF_8);
+                Files.writeString(dir.resolve("package.json"), "{\"name\":\"x\"}", StandardCharsets.UTF_8);
+                Files.writeString(dir.resolve("old.json"), "{\"swagger\":\"2.0\",\"paths\":{}}", StandardCharsets.UTF_8);
+                var r = com.example.casc.ingest.InputFiles.collect(List.of(dir.toString()), null,
+                        com.example.casc.ingest.SourceIngestionService.standard().knownExtensions());
+                eq(List.of("api.json", "old.json"), r.inputs().stream().map(com.example.casc.ingest.SourceInput::name).toList());
+                yes(r.notes().stream().anyMatch(n -> n.contains("package.json")), "other JSON is noted as skipped");
+            } finally {
+                deleteTree(dir);
             }
         });
     }

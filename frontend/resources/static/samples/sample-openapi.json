@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Trade API", "version": "1.2.0" },
+  "paths": {
+    "/trades": {
+      "get": {
+        "operationId": "listTrades",
+        "summary": "List trades",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Trade" } }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTrade",
+        "summary": "Create a trade",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Trade" } } }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Trade": {
+        "type": "object",
+        "description": "A single trade",
+        "properties": {
+          "tradeId": { "type": "string", "description": "Unique trade identifier" },
+          "quantity": { "type": "number", "format": "double", "description": "Number of units" },
+          "client": { "$ref": "#/components/schemas/Client" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Client": {
+        "type": "object",
+        "properties": {
+          "clientId": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      }
+    }
+  }
+}

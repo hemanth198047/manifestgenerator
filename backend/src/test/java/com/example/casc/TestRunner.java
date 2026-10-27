@@ -10,6 +10,8 @@ public final class TestRunner {
         OutputTests.register();
         AppTests.register();
         com.example.casc.ingest.IngestTests.register();
+        com.example.casc.net.NetTests.register();
+        com.example.casc.ingest.OpenApiTests.register();
         IngestAppTests.register();
         int failed = 0;
         int skipped = 0;
