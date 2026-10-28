@@ -4,7 +4,7 @@ Approval status and internal availability are UNKNOWN until you supply them. Not
 
 | Item | Version | Purpose | Required | Transitives | Availability | Approval |
 |------|---------|---------|----------|-------------|--------------|----------|
-| JDK (modules `java.base`, `java.net.http`, `jdk.httpserver`) | 17 or newer (provisional) | Compile and run | Yes | n/a | Unknown | Unknown |
+| JDK (modules `java.base`, `java.net.http`, `jdk.httpserver`) | 21 (chosen) | Compile and run | Yes | n/a | Unknown | Unknown |
 | Gradle | 8.x (provisional) | Build | Yes (or use the JDK-only scripts) | n/a | Unknown | Unknown |
 | Gradle `java` plugin | built in | Compile, jar | Yes | none | Part of Gradle | Follows Gradle |
 | Bash and `sha256sum`, or PowerShell | any | CI verification scripts only | No | n/a | Unknown | Unknown |

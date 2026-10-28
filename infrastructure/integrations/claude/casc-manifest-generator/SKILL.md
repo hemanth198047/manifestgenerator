@@ -9,7 +9,7 @@ This skill runs the locally built `casc-generator` command line tool. It is not 
 everything below is a documented command of the application. If a command fails, report its message; do not work around it.
 
 ## Before you start
-- Needs JDK 17+ and the built jar `build/libs/casc-generator.jar` (see the project README). Use the launcher from the repository root:
+- Needs JDK 21 and the built jar `build/libs/casc-generator.jar` (see the project README). Use the launcher from the repository root:
   Linux `infrastructure/launchers/run-cli.sh`, Windows `infrastructure\launchers\run-cli.bat`.
 - Check what this build can do: `run-cli tools` lists the three tools; `run-cli capabilities` lists available and unavailable formats.
 - XLSX, DOCX, PDF, HTML and YAML are NOT supported. If the user has them, ask for CSV, TSV, text, Markdown or OpenAPI JSON exports. Do not try to convert them yourself.

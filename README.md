@@ -20,7 +20,7 @@ The web UI, REST API and CLI all call the same `app` and `validation` code.
 
 ## Build and run
 
-Requires an approved JDK 17+ and Gradle (Groovy DSL). No repositories are configured because nothing is downloaded.
+Requires an approved JDK 21 and Gradle (Groovy DSL). No repositories are configured because nothing is downloaded.
 
 ```
 gradle wrapper                      # once, with your approved Gradle (Windows: gradle.bat wrapper)

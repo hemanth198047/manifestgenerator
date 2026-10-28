@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Builds, tests and packages with only the JDK tools (no Gradle). Works on Linux and on Windows with Git Bash.
-# Overrides: JAVAC, JAR_TOOL, JAVA (commands), JAVAC_FLAGS (default "--release 17"), LC_ALL for a UTF-8 locale.
+# Overrides: JAVAC, JAR_TOOL, JAVA (commands), JAVAC_FLAGS (default "--release 21"), LC_ALL for a UTF-8 locale.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 JAVAC="${JAVAC:-javac}"
 JAR_TOOL="${JAR_TOOL:-jar}"
 JAVA="${JAVA:-java}"
-JAVAC_FLAGS="${JAVAC_FLAGS---release 17}"
+JAVAC_FLAGS="${JAVAC_FLAGS---release 21}"
 OUT=build/plain
 rm -rf "$OUT"
 mkdir -p "$OUT/main" "$OUT/test"

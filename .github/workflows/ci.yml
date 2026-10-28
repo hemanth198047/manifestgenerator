@@ -37,10 +37,10 @@ jobs:
           git -c "http.extraheader=Authorization: Basic ${auth}" fetch --depth 1 origin "${GITHUB_SHA}"
           git checkout --force FETCH_HEAD
 
-      - name: Select the preinstalled JDK 17
+      - name: Select the preinstalled JDK 21
         run: |
-          jdk="${JAVA_HOME_17_X64:-}"
-          if [ -z "$jdk" ]; then echo "JDK 17 is not preinstalled on this runner image" >&2; exit 1; fi
+          jdk="${JAVA_HOME_21_X64:-}"
+          if [ -z "$jdk" ]; then echo "JDK 21 is not preinstalled on this runner image" >&2; exit 1; fi
           echo "JAVA_HOME=$jdk" >> "$GITHUB_ENV"
           echo "$jdk/bin" >> "$GITHUB_PATH"
 

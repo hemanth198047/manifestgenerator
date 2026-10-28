@@ -1,6 +1,6 @@
 # Final report
 
-Status in one paragraph: the application is complete to the scope below and runs on JDK 17+ with no libraries. It was built, tested and run on **Linux only** (120 tests, plus a 1.2 million input fuzz campaign).
+Status in one paragraph: the application is complete to the scope below and runs on JDK 21 with no libraries. It was built, tested and run on **Linux only** (120 tests, plus a 1.2 million input fuzz campaign).
 **Gradle was never executed** against `build.gradle`, and **Windows was never executed**; both are for you to verify (`docs/WINDOWS_VERIFICATION.md`). Validation is **LOCAL against a provisional profile**:
 nothing in this repository claims validity against the official CasC schema or acceptance by the FDC service.
 
@@ -31,7 +31,7 @@ and `java -m jdk.jartool/sun.tools.jar.Main` (the same tools the scripts use thr
 ## Table 1: dependency and approval status
 | Item | Version | Required | Availability | Approval |
 |------|---------|----------|--------------|----------|
-| JDK | 17+ (provisional) | Yes | Unknown | Unknown |
+| JDK | 21 (chosen by you) | Yes | Unknown | Unknown |
 | Gradle | 8.x (provisional) | Yes, or the JDK-only scripts | Unknown | Unknown |
 | Gradle `java` plugin | built in | Yes | with Gradle | follows Gradle |
 | Libraries, third-party plugins, repositories | none | none | n/a | n/a |
@@ -73,7 +73,7 @@ and `java -m jdk.jartool/sun.tools.jar.Main` (the same tools the scripts use thr
 |---|---------|------|-----------------|
 | 1 | Gradle has never run `build.gradle` | Verification | Run `gradlew jar unitTests`; report any error |
 | 2 | Windows is unverified | Verification | Run `docs/WINDOWS_VERIFICATION.md`; the PowerShell scripts have never been executed |
-| 3 | Approved JDK, Gradle and OS versions are unknown | Approval | Tell me the versions; they are provisional (17+, 8.x) |
+| 3 | Approved JDK, Gradle and OS versions are unknown | Approval | JDK 21 is chosen; confirm the exact approved JDK build, Gradle (8.x is a placeholder) and OS versions |
 | 4 | Official CasC Technical Reference and accepted examples | Specification | Placement of EON ID and system name; systemKey scope; exact enum spellings; PII catalog; `sourcedFromColumns` shape; database name rules. All are provisional (`docs/DECISION_LOG.md`) |
 | 5 | Official schema and an approved validator | Specification | Without them validation stays LOCAL |
 | 6 | FDC acceptance evidence | Verification | A real upload to Portal, Train or the CasC Dropbox |

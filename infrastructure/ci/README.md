@@ -17,7 +17,7 @@ regenerate it on one OS (command in `verify.sh`) and confirm the other OS reprod
 
 ## GitHub Actions (optional)
 `.github/workflows/ci.yml` runs on `ubuntu-latest` and `windows-latest`. It uses no marketplace actions: it checks out with plain `git` and the job token, takes the JDK preinstalled on the runner
-(`JAVA_HOME_17_X64`) and the runner's Gradle. Public runners and every action are supply chain dependencies that need your organization's approval; if you add `actions/checkout`, `actions/setup-java`
+(`JAVA_HOME_21_X64`) and the runner's Gradle. Public runners and every action are supply chain dependencies that need your organization's approval; if you add `actions/checkout`, `actions/setup-java`
 or similar, pin them to a reviewed commit SHA. The workflow has **not been executed** by the author.
 
 ## What the pipeline cannot show

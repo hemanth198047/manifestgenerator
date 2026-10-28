@@ -7,7 +7,7 @@ Do not type generated files: `gradlew`, `gradlew.bat` and `gradle/wrapper/*` com
 | Item | Needed |
 |------|--------|
 | OS | Windows or Linux; no administrator or root rights |
-| JDK | Approved 17+ with `java.net.http` and `jdk.httpserver` (standard). Check `java -version` and `JAVA_HOME` |
+| JDK | Approved JDK 21 with `java.net.http` and `jdk.httpserver` (standard). Check `java -version` and `JAVA_HOME` |
 | Gradle | Approved 8.x distribution (or use the JDK-only scripts) |
 | Internal repositories, plugins, libraries | None needed |
 | Editor | Any that saves UTF-8 with LF endings |
@@ -149,7 +149,7 @@ Handwritten files are the ones above. Generated or output, not typed: `gradlew`,
 2. Checkpoints A, B and C are a clean compile (`javac -d out -encoding UTF-8 <files>` or `gradlew compileJava`) that prints nothing. D: run the tests; expect `120 passed` (119 passed and 1 skipped without a UTF-8 locale).
 3. Common typing mistakes: a missing `}` closing a `switch` or class; `->` typed as `-` `>`; curly quotes instead of straight quotes;
    `{{` `}}` in HTML templates must stay exactly as written; a `.sh` file saved with CRLF endings; the Unicode escapes `\u2192` and `\u2013` in `TextStrategy` typed literally;
-   HTML in `Wizard.java` and `WebServer.java` is built from many short strings, so check each quote and `+`; JSON request and sample files must be valid JSON (the tests parse them); `text blocks` and records need JDK 17.
+   HTML in `Wizard.java` and `WebServer.java` is built from many short strings, so check each quote and `+`; JSON request and sample files must be valid JSON (the tests parse them); records, pattern matching and text blocks need the JDK 21 compiler.
 4. Expected results: A, B and C print nothing; D prints one `PASS` line per test and `120 passed, 0 failed`.
 
 ## Commands
@@ -159,7 +159,7 @@ Windows: `gradle.bat wrapper ...` then `gradlew.bat jar unitTests` then `java -j
 Without Gradle: `bash infrastructure/ci/build-without-gradle.sh` or `powershell -File infrastructure\ci\build-without-gradle.ps1`.
 
 ## Recovery
-- Wrong Java: set `JAVA_HOME` to the approved JDK; `options.release = 17` needs JDK 17 or newer. A toolchain error means Gradle runs on an older JDK.
+- Wrong Java: set `JAVA_HOME` to the approved JDK; `options.release = 21` needs JDK 21 or newer. A toolchain error means Gradle runs on an older JDK.
 - Wrapper unavailable or cannot download: generate it from your approved Gradle with the internal `distributionUrl` and checksum (`docs/BUILD.md`); never point it at an unapproved URL.
 - Plugin or dependency resolution errors: there should be none (no repositories are configured). If you see them, `build.gradle` or `settings.gradle` was typed with an extra block.
 - `unitTests` task not found, or a Groovy syntax error: compare `build.gradle` with the repository version; every brace and quote must match.

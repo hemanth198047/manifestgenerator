@@ -2,6 +2,7 @@
 
 ## Executed (authoring sandbox)
 - Platform: Linux x86_64 (Ubuntu 24.04), OpenJDK 21.0.10. Compiled with the JDK's `jdk.compiler` module, not Gradle.
+- Target JDK is 21 (D-056). The sandbox runtime is OpenJDK 21.0.10, so tests ran on the target JDK; the plain build compiled with `--source 21 --target 21` because this runtime cannot honour `--release` (no compatibility data). The `--release 21` flag in `build.gradle` and the scripts has therefore not been exercised.
 - Test runner: 120 tests. Under `LC_ALL=C.UTF-8` all 120 pass. Under the POSIX locale 119 pass and 1 is skipped (Unicode file names need a UTF-8 locale).
 - Fuzzing: seeded, repeatable tests in the suite (random text through every reader, damaged copies of the samples, damaged manifests, damaged tool requests) and a heavier one-off campaign of
   1,222,461 random and damaged inputs over the readers, manifest mapper, exporter and tool contract with a fresh seed each run: no uncaught exception and no empty success.
@@ -25,7 +26,7 @@
 
 ## Supplied but NOT executed
 - Gradle build (`jar`, `unitTests`, wrapper generation). Gradle was not available in the sandbox; `build.gradle` has never been parsed by Gradle.
-- The GitHub workflow `.github/workflows/ci.yml` (no GitHub runner was available), including its plain-git checkout and the runner-provided JDK 17 and Gradle.
+- The GitHub workflow `.github/workflows/ci.yml` (no GitHub runner was available), including its plain-git checkout and the runner-provided JDK 21 and Gradle.
 - The skill and instruction files in a real Claude or Copilot session; only their consistency with the application was checked.
 - The two PowerShell scripts `verify.ps1` and `build-without-gradle.ps1` (no PowerShell was available).
 - Anything on Windows, including the cross-platform manifest hash: `.bat` launchers, drive-letter paths, file locking, Windows symbolic links, and the 127.0.0.2 loopback token test.

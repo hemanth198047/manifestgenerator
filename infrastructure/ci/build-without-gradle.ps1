@@ -1,5 +1,5 @@
 # Windows-native equivalent of build-without-gradle.sh: compile, test and package with only the JDK tools.
-# Overrides: $env:JAVAC, $env:JAR_TOOL, $env:JAVA. Requires JDK 17+ on PATH (or those variables).
+# Overrides: $env:JAVAC, $env:JAR_TOOL, $env:JAVA. Requires JDK 21 or newer on PATH (or those variables).
 # NOT EXECUTED by the author: no PowerShell was available while writing it. Run it once and report the result.
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..\..')
@@ -18,12 +18,12 @@ function Write-ArgFile($sourceDir, $target) {
 }
 
 Write-ArgFile 'backend\src\main' "$out\main-files.txt"
-& $javac -d "$out\main" -encoding UTF-8 --release 17 "@$out\main-files.txt"
+& $javac -d "$out\main" -encoding UTF-8 --release 21 "@$out\main-files.txt"
 if ($LASTEXITCODE -ne 0) { Write-Host 'Compilation of the main sources failed'; exit 1 }
 Copy-Item -Path 'frontend\resources\*' -Destination "$out\main" -Recurse -Force
 
 Write-ArgFile 'backend\src\test' "$out\test-files.txt"
-& $javac -d "$out\test" -cp "$out\main" -encoding UTF-8 --release 17 "@$out\test-files.txt"
+& $javac -d "$out\test" -cp "$out\main" -encoding UTF-8 --release 21 "@$out\test-files.txt"
 if ($LASTEXITCODE -ne 0) { Write-Host 'Compilation of the tests failed'; exit 1 }
 
 & $java '-Dfile.encoding=UTF-8' -cp "$out\test;$out\main" com.example.casc.TestRunner

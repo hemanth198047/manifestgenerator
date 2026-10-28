@@ -6,7 +6,7 @@ downloaded during a build once the JDK and Gradle themselves are provisioned.
 ## Prerequisites (provisional versions: replace with your approved ones)
 | Item | Needed | Notes |
 |------|--------|-------|
-| JDK | 17 or newer, installed locally | `options.release = 17`. No toolchain auto-download is configured; Gradle uses the JDK it runs on. |
+| JDK | 21 or newer, installed locally | `options.release = 21`. No toolchain auto-download is configured; Gradle uses the JDK it runs on. |
 | Gradle | 8.x (provisional) from your approved distribution | Never executed against this build file by the author. |
 | OS | Windows or Linux | No admin or root rights are needed to build or run. |
 

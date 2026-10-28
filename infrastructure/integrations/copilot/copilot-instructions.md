@@ -4,7 +4,7 @@ Copy this file to `.github/copilot-instructions.md`, and the `instructions/` fol
 To give Copilot the full workflow, also copy `../claude/casc-manifest-generator/` to `.github/skills/casc-manifest-generator/`: it uses the same `SKILL.md` format.
 
 ## What this project is
-CasC Multi-Source Manifest Generator: a JDK-only (Java 17+) application that extracts metadata from SQL, CSV/TSV, text/Markdown and OpenAPI JSON and drafts CasC manifests.
+CasC Multi-Source Manifest Generator: a JDK-only (Java 21) application that extracts metadata from SQL, CSV/TSV, text/Markdown and OpenAPI JSON and drafts CasC manifests.
 It has no third-party libraries. Build and test with Gradle (`gradle wrapper`, then `./gradlew jar unitTests`) or see `docs/VERIFICATION.md` for the plain `javac` commands.
 
 ## Rules for suggestions

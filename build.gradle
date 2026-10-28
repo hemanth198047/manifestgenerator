@@ -19,7 +19,7 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 17          // requires an installed JDK 17 or newer; no toolchain download is configured
+    options.release = 21          // requires an installed JDK 21 or newer; no toolchain download is configured
 }
 
 jar {

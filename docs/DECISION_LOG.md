@@ -59,4 +59,4 @@ Status: C = confirmed, P = provisional, U = unverified, X = conflict, A = archit
 | D-053 | A | An MCP adapter is not implemented; it is pending approval of an MCP host or SDK | Cost and scope are written down in docs/INTEGRATION.md |
 | D-054 | A | CI is two scripts first; the GitHub workflow is optional and uses no marketplace actions | Includes a byte-identical manifest hash check across operating systems. The workflow has not been executed |
 | D-055 | A | No interactive command-line wizard | The CLI never prompts or waits; the browser wizard covers interactive use |
-
+| D-056 | A | Target JDK is 21 | Chosen by the owner. `options.release = 21`, scripts, workflow (`JAVA_HOME_21_X64`) and docs updated. The code was written to Java 17 syntax and is unchanged; the sandbox ran JDK 21.0.10, so the verification JDK now equals the target |
