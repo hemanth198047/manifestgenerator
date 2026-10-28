@@ -3,7 +3,7 @@
 Generates and validates CasC manifests for the Firmwide Data Catalog. The application uses the JDK only:
 no Spring, no Jackson, no JavaFX, no libraries of any kind. It runs on Windows and Linux from one jar.
 
-Current phase: 6 of 7 (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
+Current phase: 7 of 7 (complete; verification on Gradle and Windows is still yours to run) (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
 into an unreviewed draft manifest; OpenAPI JSON and allowlisted URL sources, and a five-step wizard with reconciliation and project files, see `docs/WIZARD.md`; agent tool contracts, skill files and CI, see `docs/INTEGRATION.md`). Documents (DOCX, PDF), spreadsheets, HTML and YAML need libraries that are not part of this build. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
 
 ## Layout
@@ -33,6 +33,9 @@ java -jar build/libs/casc-generator.jar ingest --url https://wiki.corp.example/a
 ```
 
 Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.
+
+## Where to look
+`docs/FINAL_REPORT.md` (status, final tables, blockers), `docs/BUILD.md` (build and operations), `docs/WINDOWS_VERIFICATION.md`, `docs/HANDBOOK.md` (retyping), `docs/DECISION_LOG.md`.
 
 ## Honest status
 

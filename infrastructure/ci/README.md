@@ -1,6 +1,6 @@
 # CI
 
-Everything the pipeline needs is in two scripts that work on Linux and on Windows with Git Bash. Use them on any approved CI (Jenkins, GitLab, Azure DevOps, a self-hosted runner)
+Everything the pipeline needs is in two scripts that work on Linux and on Windows with Git Bash. PowerShell versions (`*.ps1`, no Bash needed) exist for Windows but have **never been executed** by the author. Use them on any approved CI (Jenkins, GitLab, Azure DevOps, a self-hosted runner)
 and you do not need the GitHub workflow at all.
 
 | Script | What it does |

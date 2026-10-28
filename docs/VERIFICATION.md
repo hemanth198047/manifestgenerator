@@ -2,7 +2,10 @@
 
 ## Executed (authoring sandbox)
 - Platform: Linux x86_64 (Ubuntu 24.04), OpenJDK 21.0.10. Compiled with the JDK's `jdk.compiler` module, not Gradle.
-- Test runner: 115 tests. Under `LC_ALL=C.UTF-8` all 115 pass. Under the POSIX locale 114 pass and 1 is skipped (Unicode file names need a UTF-8 locale).
+- Test runner: 120 tests. Under `LC_ALL=C.UTF-8` all 120 pass. Under the POSIX locale 119 pass and 1 is skipped (Unicode file names need a UTF-8 locale).
+- Fuzzing: seeded, repeatable tests in the suite (random text through every reader, damaged copies of the samples, damaged manifests, damaged tool requests) and a heavier one-off campaign of
+  1,222,461 random and damaged inputs over the readers, manifest mapper, exporter and tool contract with a fresh seed each run: no uncaught exception and no empty success.
+- Phase 7 review found and fixed two defects: a stale home page, and a Windows-style source name such as `C:\specs\orders.csv` producing a wrong table name (now covered by a test).
 - Agent contracts: strict request checking at every level, stdin and file requests, exit codes, a request that must never read standard input, no arbitrary file access, URLs only under the allowlist,
   the HTTP route, a full ingest-to-generate pipe, example requests checked for drift against a fresh ingest, skill and instruction files checked against the real commands and tools,
   and the recorded manifest hash checked against today's output.
@@ -24,6 +27,7 @@
 - Gradle build (`jar`, `unitTests`, wrapper generation). Gradle was not available in the sandbox; `build.gradle` has never been parsed by Gradle.
 - The GitHub workflow `.github/workflows/ci.yml` (no GitHub runner was available), including its plain-git checkout and the runner-provided JDK 17 and Gradle.
 - The skill and instruction files in a real Claude or Copilot session; only their consistency with the application was checked.
+- The two PowerShell scripts `verify.ps1` and `build-without-gradle.ps1` (no PowerShell was available).
 - Anything on Windows, including the cross-platform manifest hash: `.bat` launchers, drive-letter paths, file locking, Windows symbolic links, and the 127.0.0.2 loopback token test.
 - Real internal hosts, corporate proxies, internal certificate authorities and real Confluence or wiki servers. Only a local test server and one self-signed server were used.
 - HTTPS redirect downgrade refusal is implemented but has no automated test (the test server speaks http only).

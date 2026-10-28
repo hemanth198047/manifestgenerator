@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.example.casc'
-version = '0.2.0'
+version = '1.0.0-rc1'
 
 // Layout: backend/ (Java), frontend/ (HTML templates + static assets), infrastructure/ (launchers, samples).
 // frontend/resources is packaged onto the classpath as /templates and /static; no frontend build tool exists.

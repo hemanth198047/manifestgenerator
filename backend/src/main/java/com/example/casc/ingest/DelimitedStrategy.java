@@ -158,7 +158,7 @@ public final class DelimitedStrategy implements SourceIngestionStrategy {
     }
 
     static String baseName(String name) {
-        String n = name.substring(name.lastIndexOf('/') + 1);
+        String n = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);   // Windows paths too
         int dot = n.lastIndexOf('.');
         return dot > 0 ? n.substring(0, dot) : n;
     }
