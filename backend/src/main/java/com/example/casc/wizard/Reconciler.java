@@ -25,7 +25,7 @@ public final class Reconciler {
 
     public static List<Decision> decisions(WizardState st, RawMetadataBundle bundle, CasCManifest manifest) {
         List<Decision> out = new ArrayList<>();
-        if (st.sources.isEmpty() && st.failedSources.isEmpty()) {
+        if (bundle == null || bundle.sources().isEmpty()) {
             out.add(new Decision("no-sources", "No sources have been added in step 1.", false));
         }
         if (bundle != null) {

@@ -1,0 +1,103 @@
+{
+  "parsedMetadata": {
+    "sources": [
+      {
+        "name": "orders.sql",
+        "format": "sql",
+        "status": "INGESTED",
+        "detail": "dialect oracle: 2 statement(s), 1 table(s), 0 view(s), 0 unsupported"
+      }
+    ],
+    "tables": [
+      {
+        "schema": "trade",
+        "name": "orders",
+        "kind": "TABLE",
+        "source": "orders.sql",
+        "location": "line 1",
+        "columns": [
+          {
+            "name": "order_id",
+            "dataType": "NUMBER(12)",
+            "typeInferred": false,
+            "nullable": false,
+            "primaryKey": true,
+            "location": "line 2"
+          },
+          {
+            "name": "client_id",
+            "dataType": "VARCHAR2(20)",
+            "typeInferred": false,
+            "primaryKey": false,
+            "location": "line 3"
+          },
+          {
+            "name": "trade_qty",
+            "dataType": "NUMBER(10,2)",
+            "typeInferred": false,
+            "primaryKey": false,
+            "description": "Number of units traded",
+            "location": "line 4"
+          }
+        ]
+      }
+    ],
+    "terms": [],
+    "notes": [],
+    "lineageHints": [],
+    "interfaces": [],
+    "structures": [],
+    "findings": [],
+    "hasErrors": false
+  },
+  "userInputs": {
+    "system": {
+      "databaseLogicalName": "TRADE_DB",
+      "databaseType": "Oracle"
+    },
+    "services": [
+      {
+        "name": "TradeService",
+        "isDeployedOnPrem": true
+      }
+    ],
+    "elements": [
+      {
+        "name": "Trade Quantity",
+        "logicalServices": [
+          "TradeService"
+        ]
+      },
+      {
+        "name": "Client Identifier"
+      }
+    ],
+    "tables": {
+      "trade.orders": {
+        "tableType": "Transaction",
+        "columns": {
+          "trade_qty": {
+            "systemDataElement": "Trade Quantity",
+            "sensitiveDataAttestation": "No"
+          },
+          "client_id": {
+            "systemDataElement": "Client Identifier",
+            "sensitiveDataAttestation": "Yes",
+            "piiElements": [
+              "Email"
+            ],
+            "dataSubjectCategories": [
+              "Client"
+            ]
+          }
+        }
+      }
+    },
+    "acknowledged": [
+      "unreviewed-draft",
+      "system-context",
+      "no-table-type"
+    ]
+  },
+  "format": "json"
+}

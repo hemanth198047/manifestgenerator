@@ -39,6 +39,11 @@ Certificate validation is never weakened. For an internal certificate authority 
 `-Dhttps.proxyHost=... -Dhttps.proxyPort=... -Dhttp.nonProxyHosts=...`; proxy handling has not been exercised in this repository's tests.
 The web server fetches URLs on behalf of whoever can reach it; with an allowlist configured, put the service behind approved authentication before sharing it.
 
+## Agent and automation integration
+`casc-generator tools` and `casc-generator tool NAME --request FILE|-` expose three JSON contracts (see `docs/INTEGRATION.md`); the web server serves the same at `POST /api/tool/NAME`.
+Skill and instruction files for Claude and Copilot are in `infrastructure/integrations/`. CI scripts and the optional GitHub workflow are described in `infrastructure/ci/README.md`.
+The tool contracts take inline text only and never read files on the caller's behalf.
+
 ## Wizard sessions
 Wizard state lives in server memory (200 sessions, 2 hours idle) and is lost on restart; users save a project file to keep it (it contains the source texts: treat it as sensitive).
 The session cookie is `HttpOnly; SameSite=Strict` without `Secure`, because the server itself speaks HTTP. Behind a TLS-terminating proxy, add `Secure` there.

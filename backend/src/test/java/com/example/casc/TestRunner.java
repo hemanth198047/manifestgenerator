@@ -15,6 +15,7 @@ public final class TestRunner {
         com.example.casc.wizard.WizardTests.register();
         IngestAppTests.register();
         WizardWebTests.register();
+        ToolTests.register();
         int failed = 0;
         int skipped = 0;
         for (TestKit.Case c : TestKit.CASES) {

@@ -12,7 +12,7 @@ public final class Main {
     public static void main(String[] args) {
         PrintStream out = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         PrintStream err = new PrintStream(new FileOutputStream(FileDescriptor.err), true, StandardCharsets.UTF_8);
-        int code = Cli.run(args, out, err);
+        int code = Cli.run(args, System.in, out, err);
         out.flush();
         err.flush();
         System.exit(code);

@@ -50,4 +50,13 @@ Status: C = confirmed, P = provisional, U = unverified, X = conflict, A = archit
 | D-044 | U | sourcedFromColumns is entered as raw JSON per column and passed through unverified | Shape unconfirmed (D-007); invalid JSON is an error |
 | D-045 | P | Interface payload paths: direction chooses the role (DISTRIBUTION: response, SOURCING: request) and individual paths can be excluded | Same provisional rule as D-030 |
 | D-046 | A | The step 5 preview is capped at 200,000 characters; the download is always complete | The copy button is hidden when the preview is cut |
+| D-047 | A | Agent integration is the CLI and HTTP JSON contracts, not MCP | Three tools: ingest_sources, validate_manifest_payload, generate_casc_manifest. Plain JSON over stdio is not called MCP |
+| D-048 | A | Tool requests carry inline text only and are strict | No path field exists; unknown fields, names and values are rejected with their path. URLs follow the allowlist (D-025) |
+| D-049 | A | Tool envelope and exit codes | ok/tool/result or error{code,message}; exit 0 ran, 1 errors with --fail-on-errors, 2 invalid request or usage, 3 I/O, 4 internal |
+| D-050 | A | generate_casc_manifest reuses the wizard engine | userInputs use manifest names and the names shown in parsedMetadata; the same decisions, assembler and reconciler as the browser wizard |
+| D-051 | A | Skills use the Agent Skills SKILL.md format for Claude and Copilot, plus Copilot instruction files | Tests check that every command and tool they mention exists and that the frontmatter limits hold |
+| D-052 | P | Copilot file locations are confirmed only from secondary sources | Official GitHub documentation was not retrieved; confirm against your Copilot version |
+| D-053 | A | An MCP adapter is not implemented; it is pending approval of an MCP host or SDK | Cost and scope are written down in docs/INTEGRATION.md |
+| D-054 | A | CI is two scripts first; the GitHub workflow is optional and uses no marketplace actions | Includes a byte-identical manifest hash check across operating systems. The workflow has not been executed |
+| D-055 | A | No interactive command-line wizard | The CLI never prompts or waits; the browser wizard covers interactive use |
 

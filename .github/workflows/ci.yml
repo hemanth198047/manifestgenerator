@@ -1,0 +1,64 @@
+# Optional CI for GitHub-hosted runners. It uses NO marketplace actions: no actions/checkout, no setup-java.
+# Checkout is plain git with the job token, the JDK is the one preinstalled on the runner image, and Gradle is the
+# runner's own. If your organization forbids public runners, run infrastructure/ci/*.sh on your approved internal CI instead
+# (see infrastructure/ci/README.md). This workflow has not been executed by the author.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C.UTF-8
+    steps:
+      - name: Check out the repository with plain git
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.extraheader=Authorization: Basic ${auth}" fetch --depth 1 origin "${GITHUB_SHA}"
+          git checkout --force FETCH_HEAD
+
+      - name: Select the preinstalled JDK 17
+        run: |
+          jdk="${JAVA_HOME_17_X64:-}"
+          if [ -z "$jdk" ]; then echo "JDK 17 is not preinstalled on this runner image" >&2; exit 1; fi
+          echo "JAVA_HOME=$jdk" >> "$GITHUB_ENV"
+          echo "$jdk/bin" >> "$GITHUB_PATH"
+
+      - name: Show tool versions
+        run: |
+          java -version
+          gradle --version
+
+      - name: Gradle build and tests
+        run: gradle --no-daemon jar unitTests
+
+      - name: Verify the Gradle-built jar (version, capabilities, tools, equivalent manifest output)
+        run: bash infrastructure/ci/verify.sh
+
+      - name: Build and test without Gradle (JDK tools only)
+        run: bash infrastructure/ci/build-without-gradle.sh
+
+      - name: Verify the plain-built jar
+        env:
+          CASC_JAR: build/plain/casc-generator.jar
+        run: bash infrastructure/ci/verify.sh

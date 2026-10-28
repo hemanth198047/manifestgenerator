@@ -210,6 +210,11 @@ public record RawMetadataBundle(List<SourceInfo> sources, List<RawTable> tables,
             return this;
         }
 
+        public Builder findingRaw(Finding f) {
+            findings.add(f);
+            return this;
+        }
+
         public Builder error(String code, String path, String message, String fix) {
             findings.add(Finding.error(code, path, message, fix));
             return this;

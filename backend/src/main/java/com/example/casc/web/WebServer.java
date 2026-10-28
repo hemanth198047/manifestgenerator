@@ -1,5 +1,7 @@
 package com.example.casc.web;
 
+import com.example.casc.agent.AgentTools;
+import com.example.casc.agent.ToolException;
 import com.example.casc.app.Capability;
 import com.example.casc.app.CapabilityService;
 import com.example.casc.app.CapabilityUnavailableException;
@@ -167,6 +169,12 @@ public final class WebServer implements AutoCloseable {
         }
         if (path.equals("/wizard") || path.startsWith("/wizard/")) {
             wizard.handle(x, path);
+            return;
+        }
+        if (path.startsWith("/api/tool/")) {
+            if (allow(x, "POST")) {
+                apiTool(x, path.substring("/api/tool/".length()));
+            }
             return;
         }
         switch (path) {
@@ -784,6 +792,27 @@ public final class WebServer implements AutoCloseable {
             t.put("content", out.export().content());
         }
         json(x, out.export() != null ? 200 : 422, t);
+    }
+
+    /** The agent tool contracts over HTTP: POST /api/tool/NAME with the request JSON; the same envelope as the CLI. */
+    private void apiTool(HttpExchange x, String name) throws Exception {
+        String body = readBody(x);
+        Map<String, Object> env = new LinkedHashMap<>();
+        env.put("tool", name);
+        try {
+            Map<String, Object> result = new AgentTools(pipeline.fetcher()).call(name, Json.parse(body));
+            env.put("ok", true);
+            env.put("result", result);
+            json(x, 200, env);
+        } catch (JsonException e) {
+            env.put("ok", false);
+            env.put("error", Map.of("code", "INVALID_REQUEST", "message", "The request is not valid JSON: " + e.getMessage()));
+            json(x, 400, env);
+        } catch (ToolException e) {
+            env.put("ok", false);
+            env.put("error", Map.of("code", e.code(), "message", e.getMessage()));
+            json(x, e.code().equals("UNKNOWN_TOOL") ? 404 : 400, env);
+        }
     }
 
     private static Map<String, Object> error(String message) {

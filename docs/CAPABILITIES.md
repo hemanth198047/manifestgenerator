@@ -1,4 +1,4 @@
-# Capability Matrix (end of Phase 5)
+# Capability Matrix (end of Phase 6)
 
 Also available at runtime: web home page, `GET /api/capabilities` and `casc-generator capabilities`.
 
@@ -20,6 +20,10 @@ Also available at runtime: web home page, `GET /api/capabilities` and `casc-gene
 | OpenAPI / Swagger JSON ingestion | none | Baseline | Reported per source | Tests executed (Linux) |
 | OpenAPI YAML | YAML parser | Unavailable | Export the JSON form | n/a |
 | URL sources (JDK HttpClient, allowlist) | none | Baseline, off until hosts are allowlisted | Reported per URL | Tests executed (Linux); TLS checked with a self-signed server |
+| Agent tool contracts (CLI `tool`, HTTP `/api/tool`) | none | Baseline | Strict errors with codes | Tests executed (Linux) |
+| Claude skill and Copilot instruction files | none | Supplied, text only | n/a | Consistency tests executed; not tried in a real agent |
+| MCP server | approved MCP host or SDK | Not implemented, pending approval | Use the CLI or HTTP contracts | n/a |
+| CI scripts and optional GitHub workflow | none | Supplied | n/a | Scripts executed on Linux; workflow and Windows not executed |
 | Five-step wizard (session state, reconciliation, governance) | none | Baseline | Reported inline | Tests executed (Linux), no real browser |
 | Project save and restore (JSON file) | none | Baseline | Strict load errors | Tests executed (Linux) |
 | Clipboard copy in step 5 | browser API | Optional, off unless `--allow-clipboard` | Button absent | Server side tested; browser behaviour not |

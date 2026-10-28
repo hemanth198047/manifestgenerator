@@ -1,5 +1,7 @@
 package com.example.casc.cli;
 
+import com.example.casc.agent.AgentTools;
+import com.example.casc.agent.ToolException;
 import com.example.casc.app.Capability;
 import com.example.casc.app.CapabilityService;
 import com.example.casc.app.CapabilityUnavailableException;
@@ -24,6 +26,7 @@ import com.example.casc.validation.Finding;
 import com.example.casc.validation.ValidationReport;
 import com.example.casc.web.WebServer;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
@@ -97,6 +100,11 @@ public final class Cli {
     }
 
     public static int run(String[] args, PrintStream out, PrintStream err) {
+        return run(args, InputStream.nullInputStream(), out, err);
+    }
+
+    /** in is read only by "tool NAME --request -"; no command ever waits for input unless it was asked to. */
+    public static int run(String[] args, InputStream in, PrintStream out, PrintStream err) {
         if (args.length == 0) {
             err.println("No command given.");
             usage(err);
@@ -123,6 +131,14 @@ public final class Cli {
                             "--mode", "--max-rows", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
                             "--url-max-bytes"), Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
+                case "tools":
+                    return tools(out);
+                case "tool":
+                    if (args.length < 2 || args[1].startsWith("--")) {
+                        throw new UsageException("tool needs a tool name: " + AgentTools.INGEST + ", " + AgentTools.VALIDATE + " or " + AgentTools.GENERATE + ".");
+                    }
+                    return tool(args[1], parse(args, 2, Set.of("--request", "--url-allow", "--url-timeout", "--url-max-bytes"),
+                            Set.of("--fail-on-errors", "--url-allow-http")), in, out, err);
                 case "web":
                     return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes", "--url-allow", "--url-timeout",
                             "--url-max-bytes"), Set.of("--url-allow-http", "--allow-clipboard")), out, err);
@@ -152,6 +168,9 @@ public final class Cli {
         p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
+        p.println("  tools                                                 list the agent tool contracts as JSON");
+        p.println("  tool NAME --request FILE|-  [--fail-on-errors]       run ingest_sources, validate_manifest_payload or generate_casc_manifest;");
+        p.println("         JSON in (file, or '-' for standard input), one JSON document out on standard output; [--url-allow HOST ...]");
         p.println("  capabilities [--json]                                 list available and unavailable capabilities");
         p.println("  version | help");
         p.println("Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 internal error.");
@@ -403,6 +422,87 @@ public final class Cli {
         printReport(draft.export().report(), out);
         out.println("Wrote UNREVIEWED draft " + draft.export().format() + " manifest to " + Path.of(output).toAbsolutePath());
         return OK;
+    }
+
+    private static int tools(PrintStream out) {
+        List<Object> list = new ArrayList<>();
+        for (AgentTools.Descriptor d : AgentTools.descriptors()) {
+            list.add(d.toTree());
+        }
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("tools", list);
+        out.println(Json.write(t));
+        return OK;
+    }
+
+    private static final int MAX_REQUEST_BYTES = 10 * 1024 * 1024;
+
+    private static void envelope(PrintStream out, String tool, boolean ok, Object resultOrError) {
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("ok", ok);
+        t.put("tool", tool);
+        t.put(ok ? "result" : "error", resultOrError);
+        out.println(Json.write(t));
+    }
+
+    private static Map<String, Object> errorBody(String code, String message) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("code", code);
+        e.put("message", message);
+        return e;
+    }
+
+    /** Exit 0: the tool ran (read the result). 1: --fail-on-errors and the result has errors. 2: invalid request. 3: I/O. 4: internal. */
+    private static int tool(String name, Opts o, InputStream in, PrintStream out, PrintStream err) throws UsageException {
+        if (AgentTools.descriptors().stream().noneMatch(d -> d.name().equals(name))) {
+            envelope(out, name, false, errorBody("UNKNOWN_TOOL", "Unknown tool '" + name + "'. Available: " + AgentTools.INGEST + ", "
+                    + AgentTools.VALIDATE + ", " + AgentTools.GENERATE + "."));
+            return USAGE;
+        }
+        String request = o.get("--request", null);
+        if (request == null) {
+            throw new UsageException("--request FILE is required (use --request - to read standard input). The command never waits for input on its own.");
+        }
+        UrlPolicy policy = urlPolicy(o);
+        String text;
+        try {
+            if (request.equals("-")) {
+                byte[] bytes = in.readNBytes(MAX_REQUEST_BYTES + 1);
+                if (bytes.length > MAX_REQUEST_BYTES) {
+                    throw new IOException("The request is larger than " + MAX_REQUEST_BYTES + " bytes.");
+                }
+                SourceInput s = SourceInput.fromBytes("request", bytes);
+                if (s.readError() != null) {
+                    throw new IOException("The request is not valid UTF-8 text.");
+                }
+                text = s.text();
+            } else {
+                text = readInput(request);
+            }
+        } catch (IOException e) {
+            envelope(out, name, false, errorBody("IO_ERROR", e.getMessage()));
+            return IO;
+        }
+        Object tree;
+        try {
+            tree = Json.parse(text);
+        } catch (JsonException e) {
+            envelope(out, name, false, errorBody("INVALID_REQUEST", "The request is not valid JSON: " + e.getMessage()));
+            return USAGE;
+        }
+        try {
+            Map<String, Object> result = new AgentTools(policy.enabled() ? new HttpUrlFetcher(policy) : UrlFetcher.disabled()).call(name, tree);
+            envelope(out, name, true, result);
+            boolean bad = Boolean.TRUE.equals(result.get("hasErrors")) || Boolean.FALSE.equals(result.get("valid"))
+                    || Boolean.FALSE.equals(result.get("exportable"));
+            return bad && o.flags().contains("--fail-on-errors") ? INVALID : OK;
+        } catch (ToolException e) {
+            envelope(out, name, false, errorBody(e.code(), e.getMessage()));
+            return USAGE;
+        } catch (RuntimeException e) {
+            envelope(out, name, false, errorBody("INTERNAL", "Internal error (" + e.getClass().getSimpleName() + ")."));
+            return INTERNAL;
+        }
     }
 
     private static int web(Opts o, PrintStream out, PrintStream err) throws UsageException {

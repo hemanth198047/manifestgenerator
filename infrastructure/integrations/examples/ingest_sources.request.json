@@ -1,0 +1,9 @@
+{
+  "sources": [
+    {
+      "name": "orders.sql",
+      "text": "CREATE TABLE trade.orders (\n  order_id NUMBER(12) NOT NULL,\n  client_id VARCHAR2(20),\n  trade_qty NUMBER(10,2),\n  CONSTRAINT pk_orders PRIMARY KEY (order_id)\n);\nCOMMENT ON COLUMN trade.orders.trade_qty IS 'Number of units traded';\n"
+    }
+  ],
+  "options": { "dialect": "oracle" }
+}

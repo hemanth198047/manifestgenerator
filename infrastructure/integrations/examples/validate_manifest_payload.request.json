@@ -1,0 +1,30 @@
+{
+  "manifest": {
+    "logicalServices": [
+      { "name": "TradeService", "isDeployedOnPrem": true }
+    ],
+    "systemDataElements": [
+      { "name": "Trade Quantity", "logicalServices": ["TradeService"] }
+    ],
+    "databases": [
+      {
+        "logicalName": "TRADE_DB",
+        "databaseType": "Oracle",
+        "schemas": [
+          {
+            "physicalName": "trade",
+            "tables": [
+              {
+                "physicalName": "orders",
+                "targetTableType": "Transaction",
+                "columns": [
+                  { "physicalName": "trade_qty", "systemDataElement": "Trade Quantity", "sensitiveDataAttestation": "No" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
