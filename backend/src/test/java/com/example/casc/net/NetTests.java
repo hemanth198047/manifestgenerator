@@ -31,6 +31,15 @@ public final class NetTests {
         throw new AssertionError("expected the fetch of " + url + " to fail");
     }
 
+    /** Starts a loopback test server on the given address, or returns null where the machine does not provide that address. */
+    private static TestServer tryStart(String host, Map<String, Resp> routes) {
+        try {
+            return TestServer.start(host, routes);
+        } catch (java.io.IOException e) {
+            return null;
+        }
+    }
+
     private static InetAddress[] ip(String... literals) throws Exception {
         InetAddress[] a = new InetAddress[literals.length];
         for (int i = 0; i < a.length; i++) {
@@ -155,13 +164,11 @@ public final class NetTests {
                     return null;
                 }
             };
-            TestServer second;
-            try {
-                second = TestServer.start("127.0.0.2", Map.of("/b", Resp.ok("text/plain", "second"), "/direct", Resp.ok("text/plain", "x")));
-            } catch (java.io.IOException e) {
+            TestServer probe = tryStart("127.0.0.2", Map.of("/b", Resp.ok("text/plain", "second"), "/direct", Resp.ok("text/plain", "x")));
+            if (probe == null) {
                 throw new Skipped("127.0.0.2 cannot be bound on this machine");
             }
-            try (second) {
+            try (TestServer second = probe) {
                 int p2 = second.port();
                 try (TestServer first = TestServer.start(Map.of("/a", Resp.redirect("http://127.0.0.2:" + p2 + "/b")))) {
                     HttpUrlFetcher f = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.1:" + first.port(), "127.0.0.2:" + p2),

@@ -320,9 +320,8 @@ final class WizardWebTests {
             for (int i = 0; i < 1500; i++) {
                 sql.append("CREATE TABLE s.t").append(i).append(" (id INT, a VARCHAR(20), b DATE, c INT);\n");
             }
-            WebServer s = new WebServer(new WebServer.Config("127.0.0.1", 0, 5_000_000, null, true));
-            s.start();
-            try (s) {
+            try (WebServer s = new WebServer(new WebServer.Config("127.0.0.1", 0, 5_000_000, null, true))) {
+                s.start();
                 Browser b = new Browser("http://127.0.0.1:" + s.port());
                 String csrf = b.csrf("/wizard/1");
                 b.post("/wizard/1", csrf, "name", "big.sql", "text", sql.toString(), "hasHeader", "true");
@@ -339,9 +338,8 @@ final class WizardWebTests {
         });
 
         test("wizard: the clipboard button appears only when the server allows it", () -> {
-            WebServer s = new WebServer(new WebServer.Config("127.0.0.1", 0, 5_000_000, null, true));
-            s.start();
-            try (s) {
+            try (WebServer s = new WebServer(new WebServer.Config("127.0.0.1", 0, 5_000_000, null, true))) {
+                s.start();
                 Browser b = new Browser("http://127.0.0.1:" + s.port());
                 contains(b.get("/wizard/5").body(), "id=\"copyBtn\"");
             }
