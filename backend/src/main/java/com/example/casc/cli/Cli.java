@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Command line front end. Never prompts and never waits for input; missing arguments produce an
@@ -105,6 +106,30 @@ public final class Cli {
 
     /** in is read only by "tool NAME --request -"; no command ever waits for input unless it was asked to. */
     public static int run(String[] args, InputStream in, PrintStream out, PrintStream err) {
+        return run(args, in, out, err, System::getenv);
+    }
+
+    private static final ThreadLocal<Function<String, String>> ENV = ThreadLocal.withInitial(() -> System::getenv);
+
+    private static String getenv(String name) {
+        return ENV.get().apply(name);
+    }
+
+    /**
+     * Same as above with the environment supplied by the caller (CASC_BIND, CASC_PORT, CASC_INPUT_ROOT, CASC_URL_ALLOW).
+     * Tests pass an empty environment so that they do not depend on the machine they run on.
+     */
+    public static int run(String[] args, InputStream in, PrintStream out, PrintStream err, Function<String, String> env) {
+        Function<String, String> previous = ENV.get();
+        ENV.set(env);
+        try {
+            return dispatch(args, in, out, err);
+        } finally {
+            ENV.set(previous);
+        }
+    }
+
+    private static int dispatch(String[] args, InputStream in, PrintStream out, PrintStream err) {
         if (args.length == 0) {
             err.println("No command given.");
             usage(err);
@@ -293,7 +318,7 @@ public final class Cli {
 
     private static UrlPolicy urlPolicy(Opts o) throws UsageException {
         List<String> allow = new ArrayList<>(o.all("--url-allow"));
-        String env = System.getenv("CASC_URL_ALLOW");
+        String env = getenv("CASC_URL_ALLOW");
         if (env != null && !env.isBlank()) {
             for (String e : env.split(",")) {
                 allow.add(e);
@@ -533,7 +558,7 @@ public final class Cli {
     }
 
     private static String envOr(String name, String fallback) {
-        String v = System.getenv(name);
+        String v = getenv(name);
         return v == null || v.isBlank() ? fallback : v;
     }
 

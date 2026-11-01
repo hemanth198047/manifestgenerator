@@ -39,10 +39,18 @@ final class ToolTests {
 
     private record Run(int code, String out, String err) {}
 
+    /** Asserts an exit code and, on failure, shows everything the command printed. */
+    private static void exit(int expected, Run r) {
+        if (r.code() != expected) {
+            throw new AssertionError("expected exit code " + expected + " but was " + r.code()
+                    + "\n--- stdout ---\n" + r.out() + "--- stderr ---\n" + r.err() + "--- end ---");
+        }
+    }
+
     private static Run cli(InputStream in, String... args) {
         ByteArrayOutputStream o = new ByteArrayOutputStream();
         ByteArrayOutputStream e = new ByteArrayOutputStream();
-        int code = Cli.run(args, in, new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8));
+        int code = Cli.run(args, in, new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8), k -> null);
         return new Run(code, o.toString(StandardCharsets.UTF_8), e.toString(StandardCharsets.UTF_8));
     }
 
@@ -98,7 +106,7 @@ final class ToolTests {
             List<String> names = AgentTools.descriptors().stream().map(AgentTools.Descriptor::name).toList();
             eq(List.of("ingest_sources", "validate_manifest_payload", "generate_casc_manifest"), names);
             Run r = cli(forbidden(), "tools");
-            eq(Cli.OK, r.code());
+            exit(Cli.OK, r);
             eq(3, ((List<?>) obj(r.out()).get("tools")).size());
             for (var d : AgentTools.descriptors()) {
                 yes(d.description().length() > 30 && !d.required().isEmpty(), d.name());
@@ -223,36 +231,36 @@ final class ToolTests {
         test("cli tool: stdin, files, exit codes and never waiting for input", () -> {
             String req = example("ingest_sources.request.json");
             Run stdinRun = cli(stdin(req), "tool", "ingest_sources", "--request", "-");
-            eq(Cli.OK, stdinRun.code());
+            exit(Cli.OK, stdinRun);
             Map<?, ?> env = obj(stdinRun.out());
             eq(Boolean.TRUE, env.get("ok"));
             eq("ingest_sources", env.get("tool"));
             eq("", stdinRun.err());
 
             Run noRequest = cli(forbidden(), "tool", "ingest_sources");
-            eq(Cli.USAGE, noRequest.code());
+            exit(Cli.USAGE, noRequest);
             contains(noRequest.err(), "never waits");
             Run unknown = cli(forbidden(), "tool", "bogus", "--request", "-");
-            eq(Cli.USAGE, unknown.code());
+            exit(Cli.USAGE, unknown);
             eq("UNKNOWN_TOOL", ((Map<?, ?>) obj(unknown.out()).get("error")).get("code"));
-            eq(Cli.USAGE, cli(forbidden(), "tool").code());
+            exit(Cli.USAGE, cli(forbidden(), "tool"));
             Run bad = cli(stdin("{oops"), "tool", "ingest_sources", "--request", "-");
-            eq(Cli.USAGE, bad.code());
+            exit(Cli.USAGE, bad);
             eq("INVALID_REQUEST", ((Map<?, ?>) obj(bad.out()).get("error")).get("code"));
             Run missing = cli(forbidden(), "tool", "ingest_sources", "--request", "no-such-file.json");
-            eq(Cli.IO, missing.code());
+            exit(Cli.IO, missing);
             eq("IO_ERROR", ((Map<?, ?>) obj(missing.out()).get("error")).get("code"));
             Run notUtf8 = cli(new ByteArrayInputStream(new byte[] {(byte) 0xC3, 0x28}), "tool", "ingest_sources", "--request", "-");
-            eq(Cli.IO, notUtf8.code());
+            exit(Cli.IO, notUtf8);
 
             String invalid = "{\"manifest\":{\"logicalServices\":[{\"name\":\"A\"}]}}";
             Run ran = cli(stdin(invalid), "tool", "validate_manifest_payload", "--request", "-");
-            eq(Cli.OK, ran.code());
+            exit(Cli.OK, ran);
             eq(Boolean.FALSE, ((Map<?, ?>) obj(ran.out()).get("result")).get("valid"));
-            eq(Cli.INVALID, cli(stdin(invalid), "tool", "validate_manifest_payload", "--request", "-", "--fail-on-errors").code());
-            eq(Cli.OK, cli(stdin(example("validate_manifest_payload.request.json")), "tool", "validate_manifest_payload", "--request", "-", "--fail-on-errors").code());
-            eq(Cli.INVALID, cli(stdin(req.replace("oracle", "oracle").replace("orders.sql", "orders.xlsx")), "tool", "ingest_sources", "--request", "-", "--fail-on-errors").code());
-            eq(Cli.USAGE, cli(forbidden(), "tool", "ingest_sources", "--request", "x", "--url-allow", "bad entry").code());
+            exit(Cli.INVALID, cli(stdin(invalid), "tool", "validate_manifest_payload", "--request", "-", "--fail-on-errors"));
+            exit(Cli.OK, cli(stdin(example("validate_manifest_payload.request.json")), "tool", "validate_manifest_payload", "--request", "-", "--fail-on-errors"));
+            exit(Cli.INVALID, cli(stdin(req.replace("oracle", "oracle").replace("orders.sql", "orders.xlsx")), "tool", "ingest_sources", "--request", "-", "--fail-on-errors"));
+            exit(Cli.USAGE, cli(forbidden(), "tool", "ingest_sources", "--request", "x", "--url-allow", "bad entry"));
         });
 
         test("cli tool: output is one JSON document on stdout, ready for a pipe", () -> {
@@ -269,7 +277,7 @@ final class ToolTests {
                 Path gen = dir.resolve("generate request.json");
                 Files.writeString(gen, "{\"parsedMetadata\":" + Json.write(env.get("result")) + ",\"userInputs\":{\"system\":{\"databaseLogicalName\":\"D\"}}}", StandardCharsets.UTF_8);
                 Run g = cli(forbidden(), "tool", "generate_casc_manifest", "--request", gen.toString());
-                eq(Cli.OK, g.code());
+                exit(Cli.OK, g);
                 eq(Boolean.TRUE, ((Map<?, ?>) obj(g.out()).get("result")).get("exportable"));
             } finally {
                 deleteTree(dir);
@@ -350,7 +358,7 @@ final class ToolTests {
                 Path out = dir.resolve("manifest.json");
                 Run r = cli(forbidden(), "ingest", "--input-files", "frontend/resources/static/samples", "--db-name", "TRADE_DB", "--db-type", "Oracle",
                         "--default-schema", "trade", "--output", out.toString());
-                eq(Cli.OK, r.code());
+                exit(Cli.OK, r);
                 byte[] bytes = Files.readAllBytes(out);
                 for (byte b : bytes) {
                     yes(b != '\r', "no CR in the manifest");

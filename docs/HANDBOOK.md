@@ -17,7 +17,7 @@ Do not type generated files: `gradlew`, `gradlew.bat` and `gradle/wrapper/*` com
 | Transfer restrictions | Everything is plain text typed by hand: no Base64, archives or downloads |
 
 ## Size and a recommended way to type it
-112 files and about 14155 lines: roughly 9729 lines of main Java and 3402 of test Java, the rest are frontend files, docs, scripts and samples. Plan for several sessions.
+112 files and about 14244 lines: roughly 9754 lines of main Java and 3466 of test Java, the rest are frontend files, docs, scripts and samples. Plan for several sessions.
 Type in this order and stop at each checkpoint:
 1. Build files and the `domain`, `profile`, `json`, `validation`, `manifest` and `output` packages: the core. Checkpoint A: compile.
 2. `ingest`, `net`, `wizard`, `agent` and `app`: the engines. Checkpoint B: compile.
@@ -105,24 +105,24 @@ A small generator script was considered and rejected: the files are not repetiti
 | 73 | `backend/src/main/java/com/example/casc/web/WebServer.java` | 925 | Common |
 | 74 | `backend/src/main/java/com/example/casc/web/WebSupport.java` | 16 | Common |
 | 75 | `backend/src/main/java/com/example/casc/web/Wizard.java` | 1009 | Common |
-| 76 | `backend/src/main/java/com/example/casc/cli/Cli.java` | 551 | Common |
+| 76 | `backend/src/main/java/com/example/casc/cli/Cli.java` | 576 | Common |
 | 77 | `backend/src/test/java/com/example/casc/TestKit.java` | 107 | Common |
 | 78 | `backend/src/test/java/com/example/casc/TestServer.java` | 94 | Common |
 | 79 | `backend/src/test/java/com/example/casc/AccessAudit.java` | 171 | Common |
 | 80 | `backend/src/test/java/com/example/casc/AccessTests.java` | 50 | Common |
-| 81 | `backend/src/test/java/com/example/casc/AppTests.java` | 224 | Common |
+| 81 | `backend/src/test/java/com/example/casc/AppTests.java` | 232 | Common |
 | 82 | `backend/src/test/java/com/example/casc/DomainTests.java` | 85 | Common |
 | 83 | `backend/src/test/java/com/example/casc/FuzzTests.java` | 138 | Common |
-| 84 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 362 | Common |
+| 84 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 395 | Common |
 | 85 | `backend/src/test/java/com/example/casc/OutputTests.java` | 107 | Common |
 | 86 | `backend/src/test/java/com/example/casc/SplitLoaderRunner.java` | 44 | Common |
-| 87 | `backend/src/test/java/com/example/casc/TestRunner.java` | 40 | Common |
-| 88 | `backend/src/test/java/com/example/casc/ToolTests.java` | 370 | Common |
+| 87 | `backend/src/test/java/com/example/casc/TestRunner.java` | 50 | Common |
+| 88 | `backend/src/test/java/com/example/casc/ToolTests.java` | 378 | Common |
 | 89 | `backend/src/test/java/com/example/casc/ValidatorTests.java` | 122 | Common |
-| 90 | `backend/src/test/java/com/example/casc/WizardWebTests.java` | 350 | Common |
+| 90 | `backend/src/test/java/com/example/casc/WizardWebTests.java` | 348 | Common |
 | 91 | `backend/src/test/java/com/example/casc/ingest/IngestTests.java` | 453 | Common |
 | 92 | `backend/src/test/java/com/example/casc/ingest/OpenApiTests.java` | 143 | Common |
-| 93 | `backend/src/test/java/com/example/casc/net/NetTests.java` | 234 | Common |
+| 93 | `backend/src/test/java/com/example/casc/net/NetTests.java` | 241 | Common |
 | 94 | `backend/src/test/java/com/example/casc/wizard/WizardTests.java` | 308 | Common |
 | 95 | `.github/workflows/ci.yml` | 64 | Common |
 | 96 | `infrastructure/README.md` | 61 | Common |
@@ -149,11 +149,11 @@ Handwritten files are the ones above. Generated or output, not typed: `gradlew`,
 
 ## Typing method
 1. Type one file at a time, in the order above, in chunks of 30-60 lines (chunk markers are yours: stop at a closed block). Do not type line numbers. Do not compile until a file is complete.
-2. Checkpoints A, B and C are a clean compile (`javac -d out -encoding UTF-8 <files>` or `gradlew compileJava`) that prints nothing. D: run the tests; expect `122 passed` (121 passed and 1 skipped without a UTF-8 locale).
+2. Checkpoints A, B and C are a clean compile (`javac -d out -encoding UTF-8 <files>` or `gradlew compileJava`) that prints nothing. D: run the tests; expect `123 passed` (122 passed and 1 skipped without a UTF-8 locale).
 3. Common typing mistakes: a missing `}` closing a `switch` or class; `->` typed as `-` `>`; curly quotes instead of straight quotes;
    `{{` `}}` in HTML templates must stay exactly as written; a `.sh` file saved with CRLF endings; the Unicode escapes `\u2192` and `\u2013` in `TextStrategy` typed literally;
    HTML in `Wizard.java` and `WebServer.java` is built from many short strings, so check each quote and `+`; JSON request and sample files must be valid JSON (the tests parse them); records, pattern matching and text blocks need the JDK 21 compiler.
-4. Expected results: A, B and C print nothing; D prints one `PASS` line per test and `122 passed, 0 failed`. Then run the same tests with main and test in separate class loaders (`bash infrastructure/ci/build-without-gradle.sh` does both): `SplitLoaderRunner` must also report `122 passed`.
+4. Expected results: A, B and C print nothing; D prints one `PASS` line per test and `123 passed, 0 failed`. Then run the same tests with main and test in separate class loaders (`bash infrastructure/ci/build-without-gradle.sh` does both): `SplitLoaderRunner` must also report `123 passed`.
 5. `AccessAudit` (a test) lists any class, method or field of the main code that a test uses without it being `public`. If you see `IllegalAccessError` or "is not public in ...; cannot be accessed from outside package", a class or method that tests use is missing `public`: compare it with the repository version.
 
 ## Commands
@@ -167,6 +167,7 @@ Without Gradle: `bash infrastructure/ci/build-without-gradle.sh` or `powershell 
 - Wrapper unavailable or cannot download: generate it from your approved Gradle with the internal `distributionUrl` and checksum (`docs/BUILD.md`); never point it at an unapproved URL.
 - Plugin or dependency resolution errors: there should be none (no repositories are configured). If you see them, `build.gradle` or `settings.gradle` was typed with an extra block.
 - `unitTests` task not found, or a Groovy syntax error: compare `build.gradle` with the repository version; every brace and quote must match.
+- A test fails: the report shows the file and line; a CLI assertion also shows the exit code with the command's stdout and stderr, and `-Dcasc.test.trace=true` adds the full stack trace. The tests ignore your CASC_* environment variables.
 - A test fails after a typo: the FAIL line names the area; fix the first compile error before looking at test failures.
 - Resume after a failed checkpoint: keep the files already typed and fix the first compile error; do not retype earlier files. Run only the compile step until it prints nothing.
 - Missing optional capability: expected. XLSX, DOCX, PDF, HTML, YAML input and MCP are unavailable by design (`docs/FINAL_REPORT.md`).

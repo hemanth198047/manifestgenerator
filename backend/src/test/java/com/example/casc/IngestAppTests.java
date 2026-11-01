@@ -27,10 +27,18 @@ final class IngestAppTests {
 
     private record Run(int code, String out, String err) {}
 
+    /** Asserts an exit code and, on failure, shows everything the command printed. */
+    private static void exit(int expected, Run r) {
+        if (r.code() != expected) {
+            throw new AssertionError("expected exit code " + expected + " but was " + r.code()
+                    + "\n--- stdout ---\n" + r.out() + "--- stderr ---\n" + r.err() + "--- end ---");
+        }
+    }
+
     private static Run cli(String... args) {
         ByteArrayOutputStream o = new ByteArrayOutputStream();
         ByteArrayOutputStream e = new ByteArrayOutputStream();
-        int code = Cli.run(args, new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8));
+        int code = Cli.run(args, java.io.InputStream.nullInputStream(), new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8), k -> null);
         return new Run(code, o.toString(StandardCharsets.UTF_8), e.toString(StandardCharsets.UTF_8));
     }
 
@@ -173,26 +181,51 @@ final class IngestAppTests {
                 Files.writeString(specs.resolve("config.json"), "{}", StandardCharsets.UTF_8);
 
                 Run summary = cli("ingest", "--input-files", specs.toString());
-                eq(Cli.OK, summary.code());
+                exit(Cli.OK, summary);
                 contains(summary.out(), "3 table(s)/view(s)");
                 contains(summary.err(), "config.json");
 
                 Run json = cli("ingest", "--input-files", specs.toString(), "--json");
-                eq(Cli.OK, json.code());
+                exit(Cli.OK, json);
                 eq(3, ((List<?>) ((Map<?, ?>) Json.parse(json.out())).get("tables")).size());
 
                 Path bundle = dir.resolve("bundle.json");
                 Path draft = dir.resolve("draft out.json");
                 Run d = cli("ingest", "--input-files", specs.toString(), "--bundle-output", bundle.toString(),
                         "--db-name", "TRADE_DB", "--db-type", "Oracle", "--output", draft.toString());
-                eq(Cli.OK, d.code());
+                exit(Cli.OK, d);
                 contains(Files.readString(draft, StandardCharsets.UTF_8), "\"logicalName\": \"TRADE_DB\"");
                 contains(Files.readString(bundle, StandardCharsets.UTF_8), "\"tables\"");
                 contains(d.out(), "UNRESOLVED_DECISION");
                 eq(List.of("bundle.json", "draft out.json", "my specs"), names(dir));
-                eq(Cli.IO, cli("ingest", "--input-files", specs.toString(), "--db-name", "X", "--output", draft.toString()).code());
-                eq(Cli.OK, cli("ingest", "--input-files", specs.toString(), "--db-name", "X", "--output", draft.toString(), "--overwrite", "--format", "yaml").code());
+                exit(Cli.IO, cli("ingest", "--input-files", specs.toString(), "--db-name", "X", "--output", draft.toString()));
+                exit(Cli.OK, cli("ingest", "--input-files", specs.toString(), "--db-name", "X", "--output", draft.toString(), "--overwrite", "--format", "yaml"));
                 contains(Files.readString(draft, StandardCharsets.UTF_8), "logicalName: \"X\"");
+            } finally {
+                deleteTree(dir);
+            }
+        });
+
+        test("cli: environment variables are honoured when supplied and the tests never depend on the real environment", () -> {
+            Path dir = tempDir("casc env ");
+            try {
+                Path csv = dir.resolve("orders.csv");
+                Files.writeString(csv, "id\n1\n", StandardCharsets.UTF_8);
+                Path out = dir.resolve("out.json");
+                String[] args = {"ingest", "--input-files", csv.toString(), "--db-name", "X", "--default-schema", "s", "--output", out.toString()};
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                ByteArrayOutputStream e = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                PrintStream pe = new PrintStream(e, true, StandardCharsets.UTF_8);
+                int blocked = Cli.run(args, java.io.InputStream.nullInputStream(), po, pe, k -> k.equals("CASC_INPUT_ROOT") ? "/no/such/root" : null);
+                eq(Cli.INVALID, blocked);
+                contains(o.toString(StandardCharsets.UTF_8), "input root cannot be resolved");
+                yes(!Files.exists(out), "nothing written when the configured root is unusable");
+                int badUrl = Cli.run(new String[] {"ingest", "--url", "https://x.example/a.json"}, java.io.InputStream.nullInputStream(), po, pe,
+                        k -> k.equals("CASC_URL_ALLOW") ? "bad entry" : null);
+                eq(Cli.USAGE, badUrl);
+                exit(Cli.OK, cli(args));          // an empty environment: the same command succeeds
+                yes(Files.exists(out), "draft written");
             } finally {
                 deleteTree(dir);
             }
@@ -202,34 +235,34 @@ final class IngestAppTests {
             Path dir = tempDir("casc ingest ");
             Path other = tempDir("casc other ");
             try {
-                eq(Cli.USAGE, cli("ingest").code());
-                eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-name", "X").code());
-                eq(Cli.INVALID, cli("ingest", "--input-files", dir.toString(), "--output", dir.resolve("x.json").toString()).code());
-                eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-type", "Mongo").code());
-                eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--map", "nonsense").code());
-                eq(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--dialect", "mysql").code());
+                exit(Cli.USAGE, cli("ingest"));
+                exit(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-name", "X"));
+                exit(Cli.INVALID, cli("ingest", "--input-files", dir.toString(), "--output", dir.resolve("x.json").toString()));
+                exit(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--db-type", "Mongo"));
+                exit(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--map", "nonsense"));
+                exit(Cli.USAGE, cli("ingest", "--input-files", dir.toString(), "--dialect", "mysql"));
 
                 Path xlsx = dir.resolve("book.xlsx");
                 Files.write(xlsx, new byte[] {1});
                 Path out = dir.resolve("out.json");
                 Run r = cli("ingest", "--input-files", xlsx.toString(), "--db-name", "X", "--output", out.toString());
-                eq(Cli.INVALID, r.code());
+                exit(Cli.INVALID, r);
                 contains(r.out(), "FORMAT_UNAVAILABLE");
                 yes(!Files.exists(out), "no draft after a failed source");
 
                 Path outside = other.resolve("a.sql");
                 Files.writeString(outside, "CREATE TABLE t (a INT);", StandardCharsets.UTF_8);
                 Run bounded = cli("ingest", "--input-files", outside.toString(), "--root", dir.toString());
-                eq(Cli.INVALID, bounded.code());
+                exit(Cli.INVALID, bounded);
                 contains(bounded.out(), "outside the allowed input root");
-                eq(Cli.INVALID, cli("ingest", "--input-files", dir.resolve("missing.sql").toString()).code());
+                exit(Cli.INVALID, cli("ingest", "--input-files", dir.resolve("missing.sql").toString()));
 
                 Path csv = dir.resolve("orders.csv");
                 Files.writeString(csv, "id\n1\n", StandardCharsets.UTF_8);
                 Run noSchema = cli("ingest", "--input-files", csv.toString(), "--db-name", "X", "--output", out.toString());
-                eq(Cli.INVALID, noSchema.code());
+                exit(Cli.INVALID, noSchema);
                 contains(noSchema.err(), "DRAFT_SCHEMA_REQUIRED");
-                eq(Cli.OK, cli("ingest", "--input-files", csv.toString(), "--db-name", "X", "--default-schema", "s", "--output", out.toString()).code());
+                exit(Cli.OK, cli("ingest", "--input-files", csv.toString(), "--db-name", "X", "--default-schema", "s", "--output", out.toString()));
                 eq(List.of("book.xlsx", "orders.csv", "out.json"), names(dir));
             } finally {
                 deleteTree(dir);
@@ -302,20 +335,20 @@ final class IngestAppTests {
 
         test("cli: URL options are validated and the block list holds", () -> {
             Run none = cli("ingest", "--url", "https://wiki.example/spec.json");
-            eq(Cli.INVALID, none.code());
+            exit(Cli.INVALID, none);
             contains(none.out(), "URL sources are disabled");
-            eq(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "bad entry").code());
-            eq(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "x.example", "--url-timeout", "0").code());
+            exit(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "bad entry"));
+            exit(Cli.USAGE, cli("ingest", "--url", "https://x.example/a.json", "--url-allow", "x.example", "--url-timeout", "0"));
             Run loop = cli("ingest", "--url", "http://127.0.0.1:1/a.json", "--url-allow", "127.0.0.1:1", "--url-allow-http");
-            eq(Cli.INVALID, loop.code());
+            exit(Cli.INVALID, loop);
             contains(loop.out(), "prohibited address");
             Run meta = cli("ingest", "--url", "https://169.254.169.254/latest/meta-data", "--url-allow", "169.254.169.254");
-            eq(Cli.INVALID, meta.code());
+            exit(Cli.INVALID, meta);
             contains(meta.out(), "prohibited address");
             Run cred = cli("ingest", "--url", "https://user:pw@x.example/a.json", "--url-allow", "x.example");
-            eq(Cli.INVALID, cred.code());
+            exit(Cli.INVALID, cred);
             contains(cred.out(), "embedded credentials");
-            eq(Cli.USAGE, cli("ingest").code());
+            exit(Cli.USAGE, cli("ingest"));
         });
 
         test("cli: OpenAPI sources draft interfaces only with a direction", () -> {
@@ -324,20 +357,20 @@ final class IngestAppTests {
                 Path api = dir.resolve("trade api.json");
                 Files.writeString(api, sample("sample-openapi.json"), StandardCharsets.UTF_8);
                 Run inspect = cli("ingest", "--input-files", api.toString());
-                eq(Cli.OK, inspect.code());
+                exit(Cli.OK, inspect);
                 contains(inspect.out(), "2 interface candidate(s), 2 structure candidate(s)");
                 Path out = dir.resolve("m.yaml");
                 Run noDir = cli("ingest", "--input-files", api.toString(), "--output", out.toString());
-                eq(Cli.INVALID, noDir.code());
+                exit(Cli.INVALID, noDir);
                 contains(noDir.err(), "DRAFT_DIRECTION_REQUIRED");
                 yes(!Files.exists(out), "nothing written");
                 Run ok = cli("ingest", "--input-files", api.toString(), "--interface-direction", "DISTRIBUTION", "--output", out.toString(), "--format", "yaml");
-                eq(Cli.OK, ok.code());
+                exit(Cli.OK, ok);
                 String y = Files.readString(out, StandardCharsets.UTF_8);
                 contains(y, "interfaces:");
                 contains(y, "type: \"DISTRIBUTION\"");
                 contains(y, "physicalName: \"client.clientId\"");
-                eq(Cli.USAGE, cli("ingest", "--input-files", api.toString(), "--interface-direction", "BOTH").code());
+                exit(Cli.USAGE, cli("ingest", "--input-files", api.toString(), "--interface-direction", "BOTH"));
                 eq(List.of("m.yaml", "trade api.json"), names(dir));
             } finally {
                 deleteTree(dir);

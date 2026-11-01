@@ -26,10 +26,18 @@ final class AppTests {
 
     private record Run(int code, String out, String err) {}
 
+    /** Asserts an exit code and, on failure, shows everything the command printed. */
+    private static void exit(int expected, Run r) {
+        if (r.code() != expected) {
+            throw new AssertionError("expected exit code " + expected + " but was " + r.code()
+                    + "\n--- stdout ---\n" + r.out() + "--- stderr ---\n" + r.err() + "--- end ---");
+        }
+    }
+
     private static Run cli(String... args) {
         ByteArrayOutputStream o = new ByteArrayOutputStream();
         ByteArrayOutputStream e = new ByteArrayOutputStream();
-        int code = Cli.run(args, new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8));
+        int code = Cli.run(args, java.io.InputStream.nullInputStream(), new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(e, true, StandardCharsets.UTF_8), k -> null);
         return new Run(code, o.toString(StandardCharsets.UTF_8), e.toString(StandardCharsets.UTF_8));
     }
 
@@ -43,14 +51,14 @@ final class AppTests {
 
     static void register() {
         test("cli: usage errors never wait for input", () -> {
-            eq(Cli.USAGE, cli().code());
-            eq(Cli.USAGE, cli("nonsense").code());
-            eq(Cli.USAGE, cli("validate").code());
+            exit(Cli.USAGE, cli());
+            exit(Cli.USAGE, cli("nonsense"));
+            exit(Cli.USAGE, cli("validate"));
             contains(cli("validate").err(), "--input FILE is required");
-            eq(Cli.USAGE, cli("export", "--input", "x").code());
-            eq(Cli.USAGE, cli("validate", "--input").code());
-            eq(Cli.USAGE, cli("web", "--port", "99999").code());
-            eq(Cli.OK, cli("help").code());
+            exit(Cli.USAGE, cli("export", "--input", "x"));
+            exit(Cli.USAGE, cli("validate", "--input"));
+            exit(Cli.USAGE, cli("web", "--port", "99999"));
+            exit(Cli.OK, cli("help"));
         });
 
         test("cli: validate and export with spaces and unicode in paths", () -> {
@@ -63,14 +71,14 @@ final class AppTests {
                 Path in = sub.resolve(fileName);
                 Files.writeString(in, resource("/static/samples/sample-manifest.json"), StandardCharsets.UTF_8);
                 Run v = cli("validate", "--input", in.toString());
-                eq(Cli.OK, v.code());
+                exit(Cli.OK, v);
                 contains(v.out(), "0 error(s)");
                 Path out = sub.resolve("out put.json");
                 Run e = cli("export", "--input", in.toString(), "--output", out.toString());
-                eq(Cli.OK, e.code());
+                exit(Cli.OK, e);
                 contains(Files.readString(out, StandardCharsets.UTF_8), "\"TradeService\"");
-                eq(Cli.IO, cli("export", "--input", in.toString(), "--output", out.toString()).code());
-                eq(Cli.OK, cli("export", "--input", in.toString(), "--output", out.toString(), "--overwrite", "--format", "yaml").code());
+                exit(Cli.IO, cli("export", "--input", in.toString(), "--output", out.toString()));
+                exit(Cli.OK, cli("export", "--input", in.toString(), "--output", out.toString(), "--overwrite", "--format", "yaml"));
                 contains(Files.readString(out, StandardCharsets.UTF_8), "logicalServices:");
                 eq(List.of(fileName, "out put.json"), names(sub).stream().sorted(java.util.Comparator.comparing(n -> n.equals("out put.json") ? 1 : 0)).toList());
                 if (!unicodeNames) {
@@ -87,12 +95,12 @@ final class AppTests {
                 Path in = dir.resolve("bad.json");
                 Files.writeString(in, BAD, StandardCharsets.UTF_8);
                 Path out = dir.resolve("out.json");
-                eq(Cli.INVALID, cli("validate", "--input", in.toString()).code());
+                exit(Cli.INVALID, cli("validate", "--input", in.toString()));
                 Run e = cli("export", "--input", in.toString(), "--output", out.toString());
-                eq(Cli.INVALID, e.code());
+                exit(Cli.INVALID, e);
                 yes(!Files.exists(out), "nothing may be written");
                 contains(e.err(), "BOOL_MISSING");
-                eq(Cli.OK, cli("export", "--input", in.toString(), "--output", out.toString(), "--allow-invalid").code());
+                exit(Cli.OK, cli("export", "--input", in.toString(), "--output", out.toString(), "--allow-invalid"));
                 yes(Files.exists(out), "written with --allow-invalid");
                 eq(List.of("bad.json", "out.json"), names(dir));
             } finally {
@@ -103,16 +111,16 @@ final class AppTests {
         test("cli: missing file, bad JSON, bad UTF-8, missing output directory return 3", () -> {
             Path dir = tempDir("casc");
             try {
-                eq(Cli.IO, cli("validate", "--input", dir.resolve("none.json").toString()).code());
+                exit(Cli.IO, cli("validate", "--input", dir.resolve("none.json").toString()));
                 Path bad = dir.resolve("bad.json");
                 Files.writeString(bad, "{not json", StandardCharsets.UTF_8);
-                eq(Cli.IO, cli("validate", "--input", bad.toString()).code());
+                exit(Cli.IO, cli("validate", "--input", bad.toString()));
                 Path enc = dir.resolve("enc.json");
                 Files.write(enc, new byte[] {'{', '"', (byte) 0xC3, (byte) 0x28, '"', '}'});
-                eq(Cli.IO, cli("validate", "--input", enc.toString()).code());
+                exit(Cli.IO, cli("validate", "--input", enc.toString()));
                 Path ok = dir.resolve("ok.json");
                 Files.writeString(ok, "{}", StandardCharsets.UTF_8);
-                eq(Cli.IO, cli("export", "--input", ok.toString(), "--output", dir.resolve("nodir").resolve("o.json").toString()).code());
+                exit(Cli.IO, cli("export", "--input", ok.toString(), "--output", dir.resolve("nodir").resolve("o.json").toString()));
             } finally {
                 deleteTree(dir);
             }
@@ -124,7 +132,7 @@ final class AppTests {
                 Path in = dir.resolve("bad.json");
                 Files.writeString(in, BAD, StandardCharsets.UTF_8);
                 Run r = cli("validate", "--input", in.toString(), "--json");
-                eq(Cli.INVALID, r.code());
+                exit(Cli.INVALID, r);
                 eq(Boolean.FALSE, ((Map<?, ?>) Json.parse(r.out())).get("valid"));
                 Run c = cli("capabilities");
                 contains(c.out(), "UNAVAILABLE");

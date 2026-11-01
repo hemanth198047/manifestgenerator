@@ -31,6 +31,16 @@ public final class TestRunner {
             } catch (Throwable t) {
                 failed++;
                 System.out.println("FAIL  " + c.name() + "  ->  " + t);
+                for (StackTraceElement e : t.getStackTrace()) {
+                    String cls = e.getClassName();
+                    if (cls.startsWith("com.example.casc") && !cls.contains("TestKit") && !cls.contains("TestRunner") && !cls.contains("$$Lambda")) {
+                        System.out.println("        at " + e.getFileName() + ":" + e.getLineNumber() + "  (" + cls + "." + e.getMethodName() + ")");
+                        break;
+                    }
+                }
+                if (Boolean.getBoolean("casc.test.trace")) {
+                    t.printStackTrace(System.out);
+                }
             }
         }
         System.out.println((TestKit.CASES.size() - failed - skipped) + " passed, " + failed + " failed, "
