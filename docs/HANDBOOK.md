@@ -17,7 +17,7 @@ Do not type generated files: `gradlew`, `gradlew.bat` and `gradle/wrapper/*` com
 | Transfer restrictions | Everything is plain text typed by hand: no Base64, archives or downloads |
 
 ## Size and a recommended way to type it
-109 files and about 13854 lines: roughly 9720 lines of main Java and 3129 of test Java, the rest are frontend files, docs, scripts and samples. Plan for several sessions.
+111 files and about 13977 lines: roughly 9729 lines of main Java and 3224 of test Java, the rest are frontend files, docs, scripts and samples. Plan for several sessions.
 Type in this order and stop at each checkpoint:
 1. Build files and the `domain`, `profile`, `json`, `validation`, `manifest` and `output` packages: the core. Checkpoint A: compile.
 2. `ingest`, `net`, `wizard`, `agent` and `app`: the engines. Checkpoint B: compile.
@@ -31,7 +31,7 @@ A small generator script was considered and rejected: the files are not repetiti
 | Seq | Path | Lines | OS |
 |-----|------|-------|----|
 | 1 | `settings.gradle` | 3 | Common |
-| 2 | `build.gradle` | 44 | Common |
+| 2 | `build.gradle` | 57 | Common |
 | 3 | `.gitignore` | 33 | Common |
 | 4 | `.gitattributes` | 5 | Common |
 | 5 | `backend/src/main/java/com/example/casc/domain/CasCManifest.java` | 57 | Common |
@@ -47,7 +47,7 @@ A small generator script was considered and rejected: the files are not repetiti
 | 15 | `backend/src/main/java/com/example/casc/output/JsonManifestSerializer.java` | 18 | Common |
 | 16 | `backend/src/main/java/com/example/casc/output/ManifestSerializer.java` | 15 | Common |
 | 17 | `backend/src/main/java/com/example/casc/output/YamlManifestSerializer.java` | 139 | Common |
-| 18 | `backend/src/main/java/com/example/casc/ingest/Csv.java` | 129 | Common |
+| 18 | `backend/src/main/java/com/example/casc/ingest/Csv.java` | 135 | Common |
 | 19 | `backend/src/main/java/com/example/casc/ingest/DelimitedStrategy.java` | 181 | Common |
 | 20 | `backend/src/main/java/com/example/casc/ingest/Dictionary.java` | 149 | Common |
 | 21 | `backend/src/main/java/com/example/casc/ingest/DraftBuilder.java` | 150 | Common |
@@ -62,10 +62,10 @@ A small generator script was considered and rejected: the files are not repetiti
 | 30 | `backend/src/main/java/com/example/casc/ingest/SqlStrategy.java` | 801 | Common |
 | 31 | `backend/src/main/java/com/example/casc/ingest/SqlTokenizer.java` | 190 | Common |
 | 32 | `backend/src/main/java/com/example/casc/ingest/TextStrategy.java` | 185 | Common |
-| 33 | `backend/src/main/java/com/example/casc/net/HttpUrlFetcher.java` | 246 | Common |
+| 33 | `backend/src/main/java/com/example/casc/net/HttpUrlFetcher.java` | 247 | Common |
 | 34 | `backend/src/main/java/com/example/casc/net/UrlFetcher.java` | 36 | Common |
-| 35 | `backend/src/main/java/com/example/casc/net/UrlPolicy.java` | 85 | Common |
-| 36 | `backend/src/main/java/com/example/casc/net/UrlSources.java` | 98 | Common |
+| 35 | `backend/src/main/java/com/example/casc/net/UrlPolicy.java` | 86 | Common |
+| 36 | `backend/src/main/java/com/example/casc/net/UrlSources.java` | 99 | Common |
 | 37 | `backend/src/main/java/com/example/casc/wizard/AssetKeys.java` | 27 | Common |
 | 38 | `backend/src/main/java/com/example/casc/wizard/ManifestAssembler.java` | 199 | Common |
 | 39 | `backend/src/main/java/com/example/casc/wizard/NameSuggester.java` | 57 | Common |
@@ -108,37 +108,39 @@ A small generator script was considered and rejected: the files are not repetiti
 | 76 | `backend/src/main/java/com/example/casc/cli/Cli.java` | 551 | Common |
 | 77 | `backend/src/test/java/com/example/casc/TestKit.java` | 107 | Common |
 | 78 | `backend/src/test/java/com/example/casc/TestServer.java` | 89 | Common |
-| 79 | `backend/src/test/java/com/example/casc/AppTests.java` | 224 | Common |
-| 80 | `backend/src/test/java/com/example/casc/DomainTests.java` | 85 | Common |
-| 81 | `backend/src/test/java/com/example/casc/FuzzTests.java` | 138 | Common |
-| 82 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 362 | Common |
-| 83 | `backend/src/test/java/com/example/casc/OutputTests.java` | 107 | Common |
-| 84 | `backend/src/test/java/com/example/casc/TestRunner.java` | 38 | Common |
-| 85 | `backend/src/test/java/com/example/casc/ToolTests.java` | 370 | Common |
-| 86 | `backend/src/test/java/com/example/casc/ValidatorTests.java` | 122 | Common |
-| 87 | `backend/src/test/java/com/example/casc/WizardWebTests.java` | 350 | Common |
-| 88 | `backend/src/test/java/com/example/casc/ingest/IngestTests.java` | 453 | Common |
-| 89 | `backend/src/test/java/com/example/casc/ingest/OpenApiTests.java` | 143 | Common |
-| 90 | `backend/src/test/java/com/example/casc/net/NetTests.java` | 233 | Common |
-| 91 | `backend/src/test/java/com/example/casc/wizard/WizardTests.java` | 308 | Common |
-| 92 | `.github/workflows/ci.yml` | 64 | Common |
-| 93 | `infrastructure/README.md` | 61 | Common |
-| 94 | `infrastructure/ci/README.md` | 24 | Common |
-| 95 | `infrastructure/ci/build-without-gradle.ps1` | 35 | Windows (PowerShell) |
-| 96 | `infrastructure/ci/build-without-gradle.sh` | 27 | Linux/Git Bash (LF, executable) |
-| 97 | `infrastructure/ci/expected-manifest.sha256` | 1 | Common |
-| 98 | `infrastructure/ci/verify.ps1` | 46 | Windows (PowerShell) |
-| 99 | `infrastructure/ci/verify.sh` | 36 | Linux/Git Bash (LF, executable) |
-| 100 | `infrastructure/integrations/claude/casc-manifest-generator/SKILL.md` | 49 | Common |
-| 101 | `infrastructure/integrations/copilot/copilot-instructions.md` | 19 | Common |
-| 102 | `infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md` | 11 | Common |
-| 103 | `infrastructure/integrations/examples/generate_casc_manifest.request.json` | 103 | Common |
-| 104 | `infrastructure/integrations/examples/ingest_sources.request.json` | 9 | Common |
-| 105 | `infrastructure/integrations/examples/validate_manifest_payload.request.json` | 30 | Common |
-| 106 | `infrastructure/launchers/run-cli.bat` | 10 | Windows only (CRLF) |
-| 107 | `infrastructure/launchers/run-cli.sh` | 10 | Linux/Git Bash (LF, executable) |
-| 108 | `infrastructure/launchers/run-web.bat` | 10 | Windows only (CRLF) |
-| 109 | `infrastructure/launchers/run-web.sh` | 10 | Linux/Git Bash (LF, executable) |
+| 79 | `backend/src/test/java/com/example/casc/AccessTests.java` | 50 | Common |
+| 80 | `backend/src/test/java/com/example/casc/AppTests.java` | 224 | Common |
+| 81 | `backend/src/test/java/com/example/casc/DomainTests.java` | 85 | Common |
+| 82 | `backend/src/test/java/com/example/casc/FuzzTests.java` | 138 | Common |
+| 83 | `backend/src/test/java/com/example/casc/IngestAppTests.java` | 362 | Common |
+| 84 | `backend/src/test/java/com/example/casc/OutputTests.java` | 107 | Common |
+| 85 | `backend/src/test/java/com/example/casc/SplitLoaderRunner.java` | 44 | Common |
+| 86 | `backend/src/test/java/com/example/casc/TestRunner.java` | 39 | Common |
+| 87 | `backend/src/test/java/com/example/casc/ToolTests.java` | 370 | Common |
+| 88 | `backend/src/test/java/com/example/casc/ValidatorTests.java` | 122 | Common |
+| 89 | `backend/src/test/java/com/example/casc/WizardWebTests.java` | 350 | Common |
+| 90 | `backend/src/test/java/com/example/casc/ingest/IngestTests.java` | 453 | Common |
+| 91 | `backend/src/test/java/com/example/casc/ingest/OpenApiTests.java` | 143 | Common |
+| 92 | `backend/src/test/java/com/example/casc/net/NetTests.java` | 233 | Common |
+| 93 | `backend/src/test/java/com/example/casc/wizard/WizardTests.java` | 308 | Common |
+| 94 | `.github/workflows/ci.yml` | 64 | Common |
+| 95 | `infrastructure/README.md` | 61 | Common |
+| 96 | `infrastructure/ci/README.md` | 24 | Common |
+| 97 | `infrastructure/ci/build-without-gradle.ps1` | 39 | Windows (PowerShell) |
+| 98 | `infrastructure/ci/build-without-gradle.sh` | 29 | Linux/Git Bash (LF, executable) |
+| 99 | `infrastructure/ci/expected-manifest.sha256` | 1 | Common |
+| 100 | `infrastructure/ci/verify.ps1` | 46 | Windows (PowerShell) |
+| 101 | `infrastructure/ci/verify.sh` | 36 | Linux/Git Bash (LF, executable) |
+| 102 | `infrastructure/integrations/claude/casc-manifest-generator/SKILL.md` | 49 | Common |
+| 103 | `infrastructure/integrations/copilot/copilot-instructions.md` | 19 | Common |
+| 104 | `infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md` | 11 | Common |
+| 105 | `infrastructure/integrations/examples/generate_casc_manifest.request.json` | 103 | Common |
+| 106 | `infrastructure/integrations/examples/ingest_sources.request.json` | 9 | Common |
+| 107 | `infrastructure/integrations/examples/validate_manifest_payload.request.json` | 30 | Common |
+| 108 | `infrastructure/launchers/run-cli.bat` | 10 | Windows only (CRLF) |
+| 109 | `infrastructure/launchers/run-cli.sh` | 10 | Linux/Git Bash (LF, executable) |
+| 110 | `infrastructure/launchers/run-web.bat` | 10 | Windows only (CRLF) |
+| 111 | `infrastructure/launchers/run-web.sh` | 10 | Linux/Git Bash (LF, executable) |
 
 Handwritten files are the ones above. Generated or output, not typed: `gradlew`, `gradlew.bat`, `gradle/wrapper/*`, `build/`, `.gradle/`, and `infrastructure/ci/expected-manifest.sha256`
 (record it after everything works with the `ingest` command shown in `infrastructure/ci/verify.sh`). `docs/` and `README.md` are optional for the build. The four sample sources under
@@ -146,11 +148,12 @@ Handwritten files are the ones above. Generated or output, not typed: `gradlew`,
 
 ## Typing method
 1. Type one file at a time, in the order above, in chunks of 30-60 lines (chunk markers are yours: stop at a closed block). Do not type line numbers. Do not compile until a file is complete.
-2. Checkpoints A, B and C are a clean compile (`javac -d out -encoding UTF-8 <files>` or `gradlew compileJava`) that prints nothing. D: run the tests; expect `120 passed` (119 passed and 1 skipped without a UTF-8 locale).
+2. Checkpoints A, B and C are a clean compile (`javac -d out -encoding UTF-8 <files>` or `gradlew compileJava`) that prints nothing. D: run the tests; expect `121 passed` (120 passed and 1 skipped without a UTF-8 locale).
 3. Common typing mistakes: a missing `}` closing a `switch` or class; `->` typed as `-` `>`; curly quotes instead of straight quotes;
    `{{` `}}` in HTML templates must stay exactly as written; a `.sh` file saved with CRLF endings; the Unicode escapes `\u2192` and `\u2013` in `TextStrategy` typed literally;
    HTML in `Wizard.java` and `WebServer.java` is built from many short strings, so check each quote and `+`; JSON request and sample files must be valid JSON (the tests parse them); records, pattern matching and text blocks need the JDK 21 compiler.
-4. Expected results: A, B and C print nothing; D prints one `PASS` line per test and `120 passed, 0 failed`.
+4. Expected results: A, B and C print nothing; D prints one `PASS` line per test and `121 passed, 0 failed`. Then run the same tests with main and test in separate class loaders (`bash infrastructure/ci/build-without-gradle.sh` does both): `SplitLoaderRunner` must also report `121 passed`.
+5. If you see `IllegalAccessError` or "is not public in ...; cannot be accessed from outside package", a class or method that tests use is missing `public`: compare it with the repository version.
 
 ## Commands
 See `docs/BUILD.md` for the full Linux and Windows table. In short:

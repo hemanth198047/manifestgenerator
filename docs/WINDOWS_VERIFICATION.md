@@ -6,7 +6,7 @@ None of the steps needs WSL, Git Bash or administrator rights except the optiona
 | # | Step (PowerShell, from the repository root) | Expected | Result |
 |---|---------------------------------------------|----------|--------|
 | 1 | `java -version` and `gradle --version` | JDK 21 or newer; your approved Gradle | |
-| 2 | `gradle wrapper ...` (see `docs/BUILD.md`), then `gradlew.bat jar unitTests` | `BUILD SUCCESSFUL`; the runner prints `120 passed` (or `119 passed, 1 skipped` if the console locale cannot encode Unicode file names) | |
+| 2 | `gradle wrapper ...` (see `docs/BUILD.md`), then `gradlew.bat jar unitTests` | `BUILD SUCCESSFUL`; the runner prints `121 passed` (or `120 passed, 1 skipped` if the console locale cannot encode Unicode file names) | |
 | 3 | `powershell -File infrastructure\ci\verify.ps1` | `verify: all checks passed (dc6bdaf5...)` with the same hash as Linux | |
 | 4 | `powershell -File infrastructure\ci\build-without-gradle.ps1` then `$env:CASC_JAR="build\plain\casc-generator.jar"; powershell -File infrastructure\ci\verify.ps1` | all tests pass; the plain-built jar also passes verify | |
 | 5 | Optional: `bash infrastructure/ci/verify.sh` in Git Bash | same hash | |

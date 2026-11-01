@@ -25,7 +25,7 @@ gradle wrapper --gradle-version <approved version> --gradle-distribution-url <in
 | Versions | `java -version; gradle --version` | `java -version` then `gradle --version` |
 | Wrapper | `gradle wrapper ...` (above) | `gradle.bat wrapper ...` |
 | Compile | `./gradlew compileJava` | `gradlew.bat compileJava` |
-| Tests (built-in runner) | `./gradlew unitTests` | `gradlew.bat unitTests` |
+| Tests (built-in runner) | `./gradlew unitTests` and `./gradlew unitTestsSeparateLoaders` (`check` runs both) | `gradlew.bat unitTests` and `gradlew.bat unitTestsSeparateLoaders` |
 | Package | `./gradlew jar` (produces `build/libs/casc-generator.jar`) | `gradlew.bat jar` |
 | Dependency inspection | `./gradlew dependencies` (expect none) | `gradlew.bat dependencies` |
 | Offline | `./gradlew --offline jar unitTests` | `gradlew.bat --offline jar unitTests` |

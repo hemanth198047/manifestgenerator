@@ -41,4 +41,17 @@ tasks.register('unitTests', JavaExec) {
     jvmArgs '-Dfile.encoding=UTF-8'
 }
 
-tasks.named('check') { dependsOn 'unitTests' }
+// Same tests, but main and test classes in separate class loaders (as some IDEs and runners do).
+// This catches code that only works because of package-private access across main and test.
+tasks.register('unitTestsSeparateLoaders', JavaExec) {
+    group = 'verification'
+    description = 'Runs the built-in test runner with main and test classes in separate class loaders.'
+    dependsOn 'classes', 'testClasses'
+    classpath = sourceSets.test.output.classesDirs
+    mainClass = 'com.example.casc.SplitLoaderRunner'
+    args sourceSets.main.output.classesDirs.asPath + File.pathSeparator + sourceSets.main.output.resourcesDir,
+         sourceSets.test.output.classesDirs.asPath
+    jvmArgs '-Dfile.encoding=UTF-8'
+}
+
+tasks.named('check') { dependsOn 'unitTests', 'unitTestsSeparateLoaders' }

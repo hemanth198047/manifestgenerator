@@ -17,6 +17,7 @@ public final class TestRunner {
         WizardWebTests.register();
         ToolTests.register();
         FuzzTests.register();
+        AccessTests.register();
         int failed = 0;
         int skipped = 0;
         for (TestKit.Case c : TestKit.CASES) {

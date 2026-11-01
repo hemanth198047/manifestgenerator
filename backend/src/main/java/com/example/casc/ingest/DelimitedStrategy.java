@@ -37,7 +37,7 @@ public final class DelimitedStrategy implements SourceIngestionStrategy {
         try {
             r = Csv.parse(in.text(), delim, Math.max(o.headerRow(), 1) + o.maxRows());
         } catch (Csv.CsvException e) {
-            b.error("CSV_SYNTAX", in.name() + ":line " + e.line, e.getMessage(),
+            b.error("CSV_SYNTAX", in.name() + ":line " + e.line(), e.getMessage(),
                     "Fix the quoting at that line, or export the file again with standard CSV quoting.");
             b.source(in.name(), format, "REJECTED", e.getMessage());
             return b.build();

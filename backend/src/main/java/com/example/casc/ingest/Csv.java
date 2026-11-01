@@ -9,23 +9,29 @@ import java.util.List;
  * Blank lines are skipped. It rejects, rather than guesses at: a quote inside an unquoted field,
  * text after a closing quote, and an unterminated quoted field.
  */
-final class Csv {
+public final class Csv {
     private Csv() {}
 
-    record Result(List<List<String>> records, List<Integer> lines, boolean truncated) {}
+    /** Parsed records with the line each one started on. Public so tests and tools in any package or class loader can use it. */
+    public record Result(List<List<String>> records, List<Integer> lines, boolean truncated) {}
 
-    static final class CsvException extends Exception {
+    public static final class CsvException extends Exception {
         private static final long serialVersionUID = 1L;
-        final int line;
+        private final int line;
 
         CsvException(String message, int line) {
             super(message + " at line " + line);
             this.line = line;
         }
+
+        /** Line (1-based) where the problem was found. */
+        public int line() {
+            return line;
+        }
     }
 
     /** Reads at most maxRecords records; truncated is true if more non-blank records follow. */
-    static Result parse(String text, char delim, int maxRecords) throws CsvException {
+    public static Result parse(String text, char delim, int maxRecords) throws CsvException {
         List<List<String>> records = new ArrayList<>();
         List<Integer> lines = new ArrayList<>();
         int n = text.length();

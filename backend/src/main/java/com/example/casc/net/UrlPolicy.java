@@ -55,7 +55,8 @@ public record UrlPolicy(List<String> allowedHosts, boolean allowHttp, boolean al
         return !allowedHosts.isEmpty();
     }
 
-    boolean hostAllowed(String host, int port, String scheme) {
+    /** True if host and port are allowed for the scheme. Public so it can be tested from any package or class loader. */
+    public boolean hostAllowed(String host, int port, String scheme) {
         String h = host.toLowerCase(Locale.ROOT);
         if (h.startsWith("[") && h.endsWith("]")) {
             h = h.substring(1, h.length() - 1);

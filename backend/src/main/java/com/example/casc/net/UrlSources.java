@@ -61,7 +61,8 @@ public final class UrlSources {
         }
     }
 
-    static SourceInput toSource(Fetched f, Set<String> known) {
+    /** Converts one fetched response into a named source. Public for tests in any package or class loader. */
+    public static SourceInput toSource(Fetched f, Set<String> known) {
         String shown = f.displayUrl().replaceFirst("^[a-z]+://", "");
         boolean hadQuery = shown.endsWith("?...");
         String base = hadQuery ? shown.substring(0, shown.length() - 4) : shown;

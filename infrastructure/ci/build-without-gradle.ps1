@@ -29,6 +29,10 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Compilation of the tests failed'; exit 1 
 & $java '-Dfile.encoding=UTF-8' -cp "$out\test;$out\main" com.example.casc.TestRunner
 if ($LASTEXITCODE -ne 0) { Write-Host 'Tests failed'; exit 1 }
 
+# Same suite with main and test classes in separate class loaders: catches package-private access across them.
+& $java '-Dfile.encoding=UTF-8' -cp "$out\test" com.example.casc.SplitLoaderRunner "$out\main" "$out\test"
+if ($LASTEXITCODE -ne 0) { Write-Host 'Tests failed with separate class loaders'; exit 1 }
+
 "Main-Class: com.example.casc.Main`r`nImplementation-Version: plain`r`n" | Set-Content -Encoding ascii -Path "$out\manifest.mf" -NoNewline
 & $jarTool --create --file "$out\casc-generator.jar" --manifest "$out\manifest.mf" -C "$out\main" .
 if ($LASTEXITCODE -ne 0) { Write-Host 'Packaging failed'; exit 1 }

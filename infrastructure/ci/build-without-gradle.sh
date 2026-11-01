@@ -20,6 +20,8 @@ $JAVAC -d "$OUT/test" -cp "$OUT/main" -encoding UTF-8 $JAVAC_FLAGS $(find backen
 SEP=":"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";";; esac
 "$JAVA" -Dfile.encoding=UTF-8 -cp "$OUT/test${SEP}$OUT/main" com.example.casc.TestRunner
+# Same suite with main and test classes in separate class loaders: catches package-private access across them.
+"$JAVA" -Dfile.encoding=UTF-8 -cp "$OUT/test" com.example.casc.SplitLoaderRunner "$OUT/main" "$OUT/test"
 
 printf 'Main-Class: com.example.casc.Main\nImplementation-Version: plain\n' > "$OUT/manifest.mf"
 # shellcheck disable=SC2086

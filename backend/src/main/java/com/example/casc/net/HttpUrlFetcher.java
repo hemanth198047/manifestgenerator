@@ -193,7 +193,8 @@ public final class HttpUrlFetcher implements UrlFetcher {
         }
     }
 
-    void check(URI u) throws FetchException {
+    /** Applies the policy to one URL (scheme, credentials, allowlist, resolved addresses) without fetching it. Public for tests. */
+    public void check(URI u) throws FetchException {
         String shown = u.getHost() == null ? "the URL" : redact(u);
         String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.ROOT);
         if (!(scheme.equals("https") || (scheme.equals("http") && policy.allowHttp()))) {

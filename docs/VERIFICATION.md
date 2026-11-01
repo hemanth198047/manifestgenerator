@@ -3,7 +3,9 @@
 ## Executed (authoring sandbox)
 - Platform: Linux x86_64 (Ubuntu 24.04), OpenJDK 21.0.10. Compiled with the JDK's `jdk.compiler` module, not Gradle.
 - Target JDK is 21 (D-056). The sandbox runtime is OpenJDK 21.0.10, so tests ran on the target JDK; the plain build compiled with `--source 21 --target 21` because this runtime cannot honour `--release` (no compatibility data). The `--release 21` flag in `build.gradle` and the scripts has therefore not been exercised.
-- Test runner: 120 tests. Under `LC_ALL=C.UTF-8` all 120 pass. Under the POSIX locale 119 pass and 1 is skipped (Unicode file names need a UTF-8 locale).
+- Test runner: 121 tests. Under `LC_ALL=C.UTF-8` all 121 pass. Under the POSIX locale 120 pass and 1 is skipped (Unicode file names need a UTF-8 locale).
+- Separate class loaders: the whole suite also passes with main and test classes in different class loaders (`SplitLoaderRunner`). Before the fix, 7 tests failed in that mode with `IllegalAccessError`
+  (4 for `Csv`, 3 for `UrlPolicy.hostAllowed`, `HttpUrlFetcher.check` and `UrlSources.toSource`); those members are now public.
 - Fuzzing: seeded, repeatable tests in the suite (random text through every reader, damaged copies of the samples, damaged manifests, damaged tool requests) and a heavier one-off campaign of
   1,222,461 random and damaged inputs over the readers, manifest mapper, exporter and tool contract with a fresh seed each run: no uncaught exception and no empty success.
 - Phase 7 review found and fixed two defects: a stale home page, and a Windows-style source name such as `C:\specs\orders.csv` producing a wrong table name (now covered by a test).
