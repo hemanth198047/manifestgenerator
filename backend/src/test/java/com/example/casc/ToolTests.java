@@ -84,6 +84,11 @@ final class ToolTests {
         throw new AssertionError("expected the call to be rejected: " + json);
     }
 
+    /** Text as an editor on any OS might have saved it: a leading byte-order mark and CRLF line endings are tolerated. */
+    private static String lf(String s) {
+        return (s.startsWith("\uFEFF") ? s.substring(1) : s).replace("\r\n", "\n");
+    }
+
     private static String example(String name) throws Exception {
         Path p = EXAMPLES.resolve(name);
         if (!Files.exists(p)) {
@@ -305,7 +310,7 @@ final class ToolTests {
             if (!Files.exists(skill)) {
                 throw new Skipped("run from the repository root to check the integration files");
             }
-            String text = Files.readString(skill, StandardCharsets.UTF_8);
+            String text = lf(Files.readString(skill, StandardCharsets.UTF_8));
             Matcher fm = Pattern.compile("^---\\n(.*?)\\n---\\n", Pattern.DOTALL).matcher(text);
             yes(fm.find(), "frontmatter present");
             Matcher name = Pattern.compile("(?m)^name: (.+)$").matcher(fm.group(1));
@@ -320,8 +325,8 @@ final class ToolTests {
             Set<String> commands = Set.of("tool", "tools", "ingest", "validate", "export", "capabilities", "version", "help", "web");
             Set<String> toolNames = Set.of("ingest_sources", "validate_manifest_payload", "generate_casc_manifest");
             Pattern cmd = Pattern.compile("run-cli\\s+(\\w+)(?:\\s+(\\w+))?");
-            List<String> files = new ArrayList<>(List.of(text, Files.readString(Path.of("infrastructure/integrations/copilot/copilot-instructions.md"), StandardCharsets.UTF_8),
-                    Files.readString(Path.of("infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md"), StandardCharsets.UTF_8)));
+            List<String> files = new ArrayList<>(List.of(text, lf(Files.readString(Path.of("infrastructure/integrations/copilot/copilot-instructions.md"), StandardCharsets.UTF_8)),
+                    lf(Files.readString(Path.of("infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md"), StandardCharsets.UTF_8))));
             for (String t : toolNames) {
                 for (String f : files.subList(0, 2)) {
                     contains(f, t);
@@ -348,6 +353,31 @@ final class ToolTests {
             yes(apply.find(), "applyTo glob present in the path instructions");
         });
 
+        test("ci: the manifest is identical when the sample sources are saved with CRLF line endings", () -> {
+            Path hashFile = Path.of("infrastructure/ci/expected-manifest.sha256");
+            Path samples = Path.of("frontend/resources/static/samples");
+            if (!Files.exists(hashFile) || !Files.isDirectory(samples)) {
+                throw new Skipped("run from the repository root to check the recorded hash");
+            }
+            Path dir = tempDir("casc crlf ");
+            try {
+                Path crlf = Files.createDirectory(dir.resolve("samples"));
+                try (java.util.stream.Stream<Path> files = Files.list(samples)) {
+                    for (Path f : files.toList()) {
+                        String text = Files.readString(f, StandardCharsets.UTF_8).replace("\r\n", "\n").replace("\n", "\r\n");
+                        Files.writeString(crlf.resolve(f.getFileName().toString()), text, StandardCharsets.UTF_8);
+                    }
+                }
+                Path out = dir.resolve("manifest.json");
+                exitOk(cli(forbidden(), "ingest", "--input-files", crlf.toString(), "--db-name", "TRADE_DB", "--db-type", "Oracle",
+                        "--default-schema", "trade", "--output", out.toString()));
+                String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(out)));
+                eq(Files.readString(hashFile, StandardCharsets.UTF_8).split("\\s+")[0], actual);
+            } finally {
+                deleteTree(dir);
+            }
+        });
+
         test("ci: the recorded manifest hash matches today's output (cross-platform determinism)", () -> {
             Path hashFile = Path.of("infrastructure/ci/expected-manifest.sha256");
             if (!Files.exists(hashFile) || !Files.isDirectory(Path.of("frontend/resources/static/samples"))) {
@@ -369,6 +399,10 @@ final class ToolTests {
                 deleteTree(dir);
             }
         });
+    }
+
+    private static void exitOk(Run r) {
+        exit(Cli.OK, r);
     }
 
     private static HttpResponse<String> post(HttpClient http, String url, String body) throws Exception {

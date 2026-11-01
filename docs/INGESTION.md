@@ -14,6 +14,7 @@ location of everything). A manifest is only generated afterwards, and only as an
 
 ## CSV and TSV
 - Quoted fields, doubled quotes, delimiters and line breaks inside quotes; LF, CRLF or CR line ends; blank lines skipped.
+- Line breaks inside a quoted value are stored as LF whether the file used LF, CRLF or CR, so output does not depend on the operating system that saved the file.
 - Rejected with the line number (never guessed): a quote inside an unquoted field, text after a closing quote, an unterminated quote.
 - Options: `delimiter` (comma, tab, semicolon, pipe or one character; `.tsv` defaults to tab), `hasHeader`, `headerRow`, `maxRows`
   (sampling limit), `mode` (`auto`, `data`, `dictionary`) and `map.table|column|description|type|schema` to name the header of each field.

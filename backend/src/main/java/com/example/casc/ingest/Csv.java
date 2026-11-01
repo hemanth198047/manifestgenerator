@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * RFC 4180 style reader for CSV, TSV and other single-character delimiters.
- * Supports quoted fields, doubled quotes, delimiters and line breaks (LF, CRLF or CR) inside quotes.
+ * Supports quoted fields, doubled quotes, delimiters and line breaks (LF, CRLF or CR) inside quotes; such line breaks are stored as LF.
  * Blank lines are skipped. It rejects, rather than guesses at: a quote inside an unquoted field,
  * text after a closing quote, and an unterminated quoted field.
  */
@@ -67,6 +67,14 @@ public final class Csv {
                         }
                         i++;
                         break;
+                    }
+                    if (q == '\r') {
+                        // A line break inside a quoted value is stored as LF whether the file used CRLF, CR or LF,
+                        // so the same metadata gives the same output on every operating system.
+                        if (i + 1 < n && text.charAt(i + 1) == '\n') {
+                            i++;
+                        }
+                        q = '\n';
                     }
                     if (q == '\n') {
                         line++;

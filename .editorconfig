@@ -1,0 +1,11 @@
+# Keeps editors from changing line endings. Source files use LF; only Windows batch files use CRLF.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf

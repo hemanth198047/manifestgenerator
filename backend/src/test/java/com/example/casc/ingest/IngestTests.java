@@ -67,6 +67,16 @@ public final class IngestTests {
             eq(List.of(1, 2), r.lines());
         });
 
+        test("csv: line breaks inside quoted values are stored as LF whatever the file used", () -> {
+            for (String nl : List.of("\n", "\r\n", "\r")) {
+                Csv.Result r = Csv.parse("a,\"x" + nl + "y" + nl + "z\",b" + nl + "1,2" + nl, ',', 10);
+                eq(List.of(List.of("a", "x\ny\nz", "b"), List.of("1", "2")), r.records());
+                eq(List.of(1, 4), r.lines());
+            }
+            RawMetadataBundle b = run("d.csv", "Table,Column,Description\r\nt,c,\"first\r\nsecond\"\r\n");
+            eq("first\nsecond", col(table(b, "t"), "c").description());
+        });
+
         test("csv: LF, CRLF, CR, BOM, blank lines and tab delimiter", () -> {
             eq(List.of(List.of("a", "b"), List.of("c", "d")), Csv.parse("\uFEFFa,b\r\n\r\nc,d", ',', 10).records());
             eq(List.of(List.of("a", "b"), List.of("c", "d")), Csv.parse("a,b\rc,d\r", ',', 10).records());

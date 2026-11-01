@@ -1,6 +1,6 @@
 # Final report
 
-Status in one paragraph: the application is complete to the scope below and runs on JDK 21 with no libraries. It was built, tested and run on **Linux only** (123 tests, plus a 1.2 million input fuzz campaign).
+Status in one paragraph: the application is complete to the scope below and runs on JDK 21 with no libraries. It was built, tested and run on **Linux only** (125 tests, plus a 1.2 million input fuzz campaign).
 **Gradle was never executed** against `build.gradle`, and **Windows was never executed**; both are for you to verify (`docs/WINDOWS_VERIFICATION.md`). Validation is **LOCAL against a provisional profile**:
 nothing in this repository claims validity against the official CasC schema or acceptance by the FDC service.
 
@@ -60,7 +60,7 @@ and `java -m jdk.jartool/sun.tools.jar.Main` (the same tools the scripts use thr
 | Task | Linux command | Windows command | Linux | Windows |
 |------|---------------|-----------------|-------|---------|
 | Build and test with Gradle | `./gradlew jar unitTests` | `gradlew.bat jar unitTests` | **Not run** | **Not run** |
-| Build and test without Gradle | `bash infrastructure/ci/build-without-gradle.sh` | `powershell -File infrastructure\ci\build-without-gradle.ps1` | Run: 123 tests pass | **Not run** (script never executed) |
+| Build and test without Gradle | `bash infrastructure/ci/build-without-gradle.sh` | `powershell -File infrastructure\ci\build-without-gradle.ps1` | Run: 125 tests pass | **Not run** (script never executed) |
 | Verify a jar and the output hash | `bash infrastructure/ci/verify.sh` | `powershell -File infrastructure\ci\verify.ps1` | Run: passed | **Not run** |
 | Web UI | `java -jar build/libs/casc-generator.jar web` | `java -jar build\libs\casc-generator.jar web` | Run: pages, wizard, API checked with HTTP | **Not run** |
 | CLI draft | `... ingest --input-files ./specs --db-name DB --default-schema s --output m.json` | same with backslashes | Run | **Not run** |
