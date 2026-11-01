@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 
-/** Tiny JDK-only HTTP server for URL tests. Listens on all IPv4 addresses so 127.0.0.1 and 127.0.0.2 both reach it. */
+/** Tiny JDK-only HTTP server for URL tests. Binds to one loopback address only (never 0.0.0.0), so it needs no firewall permission. */
 public final class TestServer implements AutoCloseable {
     public record Resp(int status, String type, byte[] body, Map<String, String> headers, long delayMs) {
         public static Resp ok(String type, String body) {
@@ -34,8 +34,8 @@ public final class TestServer implements AutoCloseable {
     public final List<String> authorization = new CopyOnWriteArrayList<>();
     private final HttpServer server;
 
-    private TestServer(Map<String, Resp> routes) throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
+    private TestServer(String host, Map<String, Resp> routes) throws IOException {
+        server = HttpServer.create(new InetSocketAddress(host, 0), 0);
         server.setExecutor(Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "test-server");
             t.setDaemon(true);
@@ -75,7 +75,12 @@ public final class TestServer implements AutoCloseable {
     }
 
     public static TestServer start(Map<String, Resp> routes) throws IOException {
-        return new TestServer(routes);
+        return new TestServer("127.0.0.1", routes);
+    }
+
+    /** Binds to another loopback address such as 127.0.0.2 (throws IOException where the machine does not provide it). */
+    public static TestServer start(String host, Map<String, Resp> routes) throws IOException {
+        return new TestServer(host, routes);
     }
 
     public int port() {

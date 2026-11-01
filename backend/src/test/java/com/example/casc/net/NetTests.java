@@ -155,27 +155,28 @@ public final class NetTests {
                     return null;
                 }
             };
-            try (TestServer t = TestServer.start(Map.of("/b", Resp.ok("text/plain", "second"), "/direct", Resp.ok("text/plain", "x")))) {
-                int p2 = t.port();
-                try (java.net.Socket sock = new java.net.Socket()) {
-                    sock.connect(new java.net.InetSocketAddress("127.0.0.2", p2), 500);
-                } catch (java.io.IOException e) {
-                    throw new Skipped("127.0.0.2 is not reachable on this machine");
-                }
-                try (TestServer u = TestServer.start(Map.of("/a", Resp.redirect("http://127.0.0.2:" + p2 + "/b")))) {
-                    HttpUrlFetcher f = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.1:" + u.port(), "127.0.0.2:" + p2),
+            TestServer second;
+            try {
+                second = TestServer.start("127.0.0.2", Map.of("/b", Resp.ok("text/plain", "second"), "/direct", Resp.ok("text/plain", "x")));
+            } catch (java.io.IOException e) {
+                throw new Skipped("127.0.0.2 cannot be bound on this machine");
+            }
+            try (second) {
+                int p2 = second.port();
+                try (TestServer first = TestServer.start(Map.of("/a", Resp.redirect("http://127.0.0.2:" + p2 + "/b")))) {
+                    HttpUrlFetcher f = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.1:" + first.port(), "127.0.0.2:" + p2),
                             literal, k -> UrlPolicy.TOKEN_ENV.equals(k) ? "tok-123" : null);
-                    eq("second", new String(f.fetch("http://127.0.0.1:" + u.port() + "/a").body(), StandardCharsets.UTF_8));
-                    eq(List.of("Bearer tok-123"), u.authorization);
-                    eq(List.of("-"), t.authorization);
+                    eq("second", new String(f.fetch("http://127.0.0.1:" + first.port() + "/a").body(), StandardCharsets.UTF_8));
+                    eq(List.of("Bearer tok-123"), first.authorization);
+                    eq(List.of("-"), second.authorization);
                 }
-                HttpUrlFetcher withToken = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.1:" + p2), literal,
+                HttpUrlFetcher withToken = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.2:" + p2), literal,
                         k -> UrlPolicy.TOKEN_ENV.equals(k) ? "tok-9" : null);
-                withToken.fetch("http://127.0.0.1:" + p2 + "/direct");
-                eq("Bearer tok-9", t.authorization.get(t.authorization.size() - 1));
-                HttpUrlFetcher noToken = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.1:" + p2), literal, k -> null);
-                noToken.fetch("http://127.0.0.1:" + p2 + "/direct");
-                eq("-", t.authorization.get(t.authorization.size() - 1));
+                withToken.fetch("http://127.0.0.2:" + p2 + "/direct");
+                eq("Bearer tok-9", second.authorization.get(second.authorization.size() - 1));
+                HttpUrlFetcher noToken = new HttpUrlFetcher(policy(3, 100_000, "127.0.0.2:" + p2), literal, k -> null);
+                noToken.fetch("http://127.0.0.2:" + p2 + "/direct");
+                eq("-", second.authorization.get(second.authorization.size() - 1));
             }
         });
 

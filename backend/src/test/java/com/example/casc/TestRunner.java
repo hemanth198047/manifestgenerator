@@ -18,6 +18,7 @@ public final class TestRunner {
         ToolTests.register();
         FuzzTests.register();
         AccessTests.register();
+        AccessAudit.register();
         int failed = 0;
         int skipped = 0;
         for (TestKit.Case c : TestKit.CASES) {
