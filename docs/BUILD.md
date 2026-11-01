@@ -34,7 +34,13 @@ gradle wrapper --gradle-version <approved version> --gradle-distribution-url <in
 | Without Gradle | `bash infrastructure/ci/build-without-gradle.sh` | `powershell -File infrastructure\ci\build-without-gradle.ps1` |
 | Verify a jar | `bash infrastructure/ci/verify.sh` | `powershell -File infrastructure\ci\verify.ps1` |
 
-## If you later add an approved library
+## Optional reader adapters (POI, PDFBox, jsoup, JSqlParser)
+Off by default; the build above is unchanged and dependency-free. To enable them, from your approved sources only:
+`gradle jar unitTests -Padapters=poi,pdfbox,jsoup,jsqlparser -PinternalRepoUrl=<internal Maven repository>` or `-PadapterLibDir=<directory of approved jars>`.
+Without Gradle: `ADAPTERS=poi,pdfbox,jsoup ADAPTER_LIB_DIR=<jars> bash infrastructure/ci/build-without-gradle.sh`. Details, versions and verification status: `docs/ADAPTERS.md`.
+If you already added these libraries to your own `build.gradle`, replace that with this switch (the adapter sources are compiled only when enabled) or merge by hand; the repository version no longer needs any dependency lines.
+
+## If you later add another approved library
 Nothing in the build needs a repository today. If you add one, configure only your internal repositories, with credentials supplied from the environment:
 ```groovy
 // settings.gradle (plugins)                          // build.gradle (dependencies)

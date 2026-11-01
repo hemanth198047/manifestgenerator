@@ -33,7 +33,7 @@ public final class ProjectFile {
         Map<String, Object> t = new LinkedHashMap<>();
         t.put("projectVersion", VERSION);
         t.put("profile", com.example.casc.profile.SchemaProfile.provisional().name());
-        t.put("sources", list(st.sources, s -> map("name", s.name(), "text", s.text())));
+        t.put("sources", list(st.sources, s -> s.isBinary() ? map("name", s.name(), "contentBase64", s.base64()) : map("name", s.name(), "text", s.text())));
         t.put("options", new LinkedHashMap<String, Object>(st.options));
         Map<String, Object> sys = map("eonId", st.system.eonId, "name", st.system.name,
                 "databaseLogicalName", st.system.databaseLogicalName, "defaultSchema", st.system.defaultSchema);
@@ -140,7 +140,13 @@ public final class ProjectFile {
         int i = 0;
         for (Object o : arr(root.get("sources"), "$.sources")) {
             Map<String, Object> m = obj(o, "$.sources[" + i + "]");
-            st.sources.add(SourceInput.of(str(m, "name", "$.sources[" + i + "]"), str(m, "text", "$.sources[" + i + "]")));
+            String sp = "$.sources[" + i + "]";
+            String b64 = str(m, "contentBase64", sp);
+            try {
+                st.sources.add(b64.isEmpty() ? SourceInput.of(str(m, "name", sp), str(m, "text", sp)) : SourceInput.fromBase64(str(m, "name", sp), b64));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(sp + ".contentBase64: not valid Base64");
+            }
             i++;
         }
         Map<String, Object> opts = root.get("options") == null ? Map.of() : obj(root.get("options"), "$.options");

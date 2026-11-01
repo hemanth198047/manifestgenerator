@@ -250,7 +250,7 @@ final class Wizard {
             b.append(WebServer.sourceBlock("", ""));
         }
         for (SourceInput in : st.sources) {
-            b.append(WebServer.sourceBlock(in.name(), in.text()));
+            b.append(WebServer.sourceBlock(in));
         }
         b.append("</div>");
         if (pipeline.fetcher().enabled()) {
@@ -259,7 +259,7 @@ final class Wizard {
         } else {
             b.append("<p class=\"notice\">URL sources are disabled: no allowed hosts are configured on this server.</p>");
         }
-        b.append("<p><input type=\"file\" id=\"sourceFiles\" multiple accept=\".sql,.ddl,.csv,.tsv,.txt,.md,.markdown,.json\">"
+        b.append("<p><input type=\"file\" id=\"sourceFiles\" multiple accept=\".sql,.ddl,.csv,.tsv,.txt,.md,.markdown,.json,.xlsx,.xlsm,.xls,.docx,.pdf,.html,.htm\">"
                 + " <button type=\"button\" id=\"loadSampleSources\">Load samples</button></p>");
         b.append("<fieldset><legend>Options</legend>").append(WebServer.optionControls(st.options)).append("<br>");
         for (String field : MAP_FIELDS) {
@@ -300,7 +300,7 @@ final class Wizard {
             (in.readError() == null ? keep : failed).add(in);
         }
         for (SourceInput in : keep) {
-            chars += in.text().length();
+            chars += in.size();
         }
         if (chars > MAX_SOURCE_CHARS) {
             flash(st, "The sources are larger than " + MAX_SOURCE_CHARS + " characters in total.", true);

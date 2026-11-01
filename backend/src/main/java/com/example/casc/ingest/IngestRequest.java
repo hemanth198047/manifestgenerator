@@ -13,7 +13,7 @@ public record IngestRequest(List<SourceInput> sources, List<String> urls, Ingest
                             DraftBuilder.SystemContext system) {
 
     /**
-     * {"sources":[{"name":"a.csv","text":"..."}], "urls":["https://wiki.corp.example/spec.json"],
+     * {"sources":[{"name":"a.csv","text":"..."},{"name":"b.xlsx","contentBase64":"..."}], "urls":["https://wiki.corp.example/spec.json"],
      *  "options":{"dialect":"oracle","hasHeader":true,"maxRows":500,"map.table":"Tbl"},
      *  "system":{"databaseLogicalName":"TRADE_DB","databaseType":"PostgreSQL","defaultSchema":"public",
      *           "interfaceDirection":"DISTRIBUTION"}}
@@ -32,10 +32,18 @@ public record IngestRequest(List<SourceInput> sources, List<String> urls, Ingest
             if (!(o.get("name") instanceof String name) || name.isBlank()) {
                 throw new IllegalArgumentException("sources[" + i + "].name must be a non-blank string");
             }
-            if (!(o.get("text") instanceof String text)) {
+            boolean hasText = o.get("text") != null;
+            boolean hasBytes = o.get("contentBase64") != null;
+            if (hasText == hasBytes) {
+                throw new IllegalArgumentException("sources[" + i + "] needs exactly one of 'text' (text formats) or 'contentBase64' (binary formats such as xlsx, docx, pdf)");
+            }
+            if (hasText && !(o.get("text") instanceof String)) {
                 throw new IllegalArgumentException("sources[" + i + "].text must be a string");
             }
-            sources.add(SourceInput.of(name, text));
+            if (hasBytes && !(o.get("contentBase64") instanceof String)) {
+                throw new IllegalArgumentException("sources[" + i + "].contentBase64 must be a string");
+            }
+            sources.add(hasText ? SourceInput.of(name, (String) o.get("text")) : SourceInput.fromBase64(name, (String) o.get("contentBase64")));
         }
         List<String> urls = new ArrayList<>();
         Object u = root.get("urls");

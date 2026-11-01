@@ -90,11 +90,11 @@ public final class InputFiles {
         }
     }
 
-    /** Directory scans include a .json file only if it mentions "openapi" or "swagger" near the start. */
+    /** Directory scans include a .json file only if it mentions "openapi" or "swagger", or looks like a Confluence page ("body" and "storage"). */
     private static boolean looksLikeOpenApi(Path f) {
         try (java.io.InputStream in = Files.newInputStream(f, LinkOption.NOFOLLOW_LINKS)) {
             String head = new String(in.readNBytes(65536), java.nio.charset.StandardCharsets.UTF_8);
-            return head.contains("\"openapi\"") || head.contains("\"swagger\"");
+            return head.contains("\"openapi\"") || head.contains("\"swagger\"") || (head.contains("\"body\"") && head.contains("\"storage\""));
         } catch (IOException e) {
             return false;
         }
@@ -120,7 +120,9 @@ public final class InputFiles {
                 return;
             }
             total[0] += size;
-            out.add(SourceInput.fromBytes(name, Files.readAllBytes(file)));
+            byte[] bytes = Files.readAllBytes(file);
+            out.add(SourceIngestionService.isBinaryExtension(SourceIngestionService.extension(name))
+                    ? SourceInput.binary(name, bytes) : SourceInput.fromBytes(name, bytes));
         } catch (IOException e) {
             out.add(SourceInput.failed(name, "Cannot read file: " + e.getMessage()));
         }

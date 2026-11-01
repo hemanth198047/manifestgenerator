@@ -197,9 +197,10 @@ public final class NetTests {
             eq("w.example/x.md", UrlSources.toSource(new Fetched("https://w.example/x", "text/markdown", "x".getBytes(StandardCharsets.UTF_8)), known).name());
             eq("w.example/index.json", UrlSources.toSource(new Fetched("https://w.example/", "application/vnd.oai.openapi+json", "{}".getBytes(StandardCharsets.UTF_8)), known).name());
             eq("w.example/page.html", UrlSources.toSource(new Fetched("https://w.example/page", "text/html", "<p>x</p>".getBytes(StandardCharsets.UTF_8)), known).name());
-            eq("", UrlSources.toSource(new Fetched("https://w.example/page", "text/html", "<p>x</p>".getBytes(StandardCharsets.UTF_8)), known).text());
+            eq("<p>x</p>", UrlSources.toSource(new Fetched("https://w.example/page", "text/html", "<p>x</p>".getBytes(StandardCharsets.UTF_8)), known).text());
             SourceInput book = UrlSources.toSource(new Fetched("https://w.example/book.xlsx", "application/octet-stream", new byte[] {(byte) 0xff, 0}), known);
             eq(null, book.readError());
+            yes(book.isBinary() && book.bytes().length == 2, "spreadsheets stay binary");
             eq("w.example/book.xlsx", book.name());
             contains(UrlSources.toSource(new Fetched("https://w.example/blob", "application/octet-stream", new byte[] {1}), known).readError(), "Cannot tell the format");
             contains(UrlSources.toSource(new Fetched("https://w.example/a.json", "application/json; charset=ISO-8859-1", new byte[] {'{', '}'}), known).readError(), "iso-8859-1");

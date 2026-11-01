@@ -118,7 +118,13 @@ final class AccessAudit {
                 String kind = m.group(1);
                 String name = m.group(3);
                 String descriptor = m.group(4);
-                Class<?> c = Class.forName(m.group(2).replace('/', '.'), false, loader);
+                Class<?> c;
+                try {
+                    c = Class.forName(m.group(2).replace('/', '.'), false, loader);
+                    c.getDeclaredMethods();                       // forces linking: fails when an adapter's library is missing
+                } catch (LinkageError e) {
+                    continue;
+                }
                 String where = current + " uses " + c.getName();
                 if (!publicChain(c)) {
                     problems.add(where + ": the class is not public");

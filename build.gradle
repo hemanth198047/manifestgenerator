@@ -5,15 +5,121 @@ plugins {
 group = 'com.example.casc'
 version = '1.0.0-rc1'
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Optional reader adapters (Apache POI, PDFBox, jsoup, JSqlParser). OFF by default: the default build has no dependencies,
+// declares no repository and resolves nothing. Turn adapters on explicitly:
+//
+//   gradle jar unitTests -Padapters=poi,pdfbox,jsoup,jsqlparser        (or -Padapters=all)
+//
+// Their libraries come from YOUR approved sources only, never from a public repository:
+//   -PinternalRepoUrl=https://.../maven-releases   internal Maven-format repository (credentials from REPO_USER / REPO_PASSWORD)
+//   -PadapterLibDir=/path/to/approved/jars         or a directory of pre-provisioned jars (all of them go on the class path)
+// Versions (repository mode only; provisional defaults, replace with your approved ones):
+//   -PpoiVersion=5.2.5 -PpdfboxVersion=3.0.2 -PjsoupVersion=1.17.2 -PjsqlparserVersion=4.9
+// A disabled adapter's sources are not compiled and its library is not resolved. See docs/ADAPTERS.md.
+// ---------------------------------------------------------------------------------------------------------------------
+def knownAdapters = ['poi', 'pdfbox', 'jsoup', 'jsqlparser']
+def requested = (findProperty('adapters') ?: '').toString().split(',').collect { it.trim() }.findAll { it }
+def enabledAdapters = requested.contains('all') ? knownAdapters : requested
+enabledAdapters.each {
+    if (!knownAdapters.contains(it)) {
+        throw new GradleException("Unknown adapter '${it}'. Known adapters: ${knownAdapters.join(', ')} (or 'all').")
+    }
+}
+def adapterLibDir = findProperty('adapterLibDir')
+def internalRepoUrl = findProperty('internalRepoUrl')
+if (enabledAdapters && !adapterLibDir && !internalRepoUrl) {
+    throw new GradleException("Adapters ${enabledAdapters} need their libraries from an approved source. Pass -PinternalRepoUrl=<internal Maven repository> " +
+            "or -PadapterLibDir=<directory of approved jars>. Nothing is downloaded from public repositories.")
+}
+def adapterVersions = [
+        poi         : findProperty('poiVersion') ?: '5.2.5',
+        pdfbox      : findProperty('pdfboxVersion') ?: '3.0.2',
+        jsoup       : findProperty('jsoupVersion') ?: '1.17.2',
+        jsqlparser  : findProperty('jsqlparserVersion') ?: '4.9',
+]
+// Reader adapters register with ServiceLoader through a generated META-INF/services file (see generateAdapterServices).
+def strategyClasses = [
+        poi   : 'com.example.casc.adapters.poi.PoiStrategy',
+        pdfbox: 'com.example.casc.adapters.pdfbox.PdfStrategy',
+        jsoup : 'com.example.casc.adapters.jsoup.HtmlStrategy',
+]
+def analyzerClasses = [jsqlparser: 'com.example.casc.adapters.jsqlparser.JSqlParserAnalyzer']
+
 // Layout: backend/ (Java), frontend/ (HTML templates + static assets), infrastructure/ (launchers, samples).
 // frontend/resources is packaged onto the classpath as /templates and /static; no frontend build tool exists.
 sourceSets {
     main {
-        java.srcDirs = ['backend/src/main/java']
-        resources.srcDirs = ['frontend/resources']
+        java.srcDirs = ['backend/src/main/java'] + enabledAdapters.collect { "backend/src/adapters/${it}/java".toString() }
+        resources.srcDirs = ['frontend/resources', layout.buildDirectory.dir('generated/services')]
     }
     test {
-        java.srcDirs = ['backend/src/test/java']
+        java.srcDirs = ['backend/src/test/java'] + enabledAdapters.collect { "backend/src/adapters/${it}/test/java".toString() }
+    }
+}
+
+if (enabledAdapters) {
+    repositories {
+        if (internalRepoUrl) {
+            maven {
+                url = internalRepoUrl
+                credentials {
+                    username = providers.environmentVariable('REPO_USER').orNull
+                    password = providers.environmentVariable('REPO_PASSWORD').orNull
+                }
+            }
+        }
+    }
+    dependencies {
+        if (adapterLibDir) {
+            implementation fileTree(dir: adapterLibDir, include: ['*.jar'])
+        } else {
+            if (enabledAdapters.contains('poi')) {
+                implementation "org.apache.poi:poi:${adapterVersions.poi}"
+                implementation "org.apache.poi:poi-ooxml:${adapterVersions.poi}"
+            }
+            if (enabledAdapters.contains('pdfbox')) {
+                implementation "org.apache.pdfbox:pdfbox:${adapterVersions.pdfbox}"
+            }
+            if (enabledAdapters.contains('jsoup')) {
+                implementation "org.jsoup:jsoup:${adapterVersions.jsoup}"
+            }
+            if (enabledAdapters.contains('jsqlparser')) {
+                implementation "com.github.jsqlparser:jsqlparser:${adapterVersions.jsqlparser}"
+            }
+        }
+    }
+}
+
+tasks.register('generateAdapterServices') {
+    group = 'build'
+    description = 'Writes the ServiceLoader registration files for the enabled adapters.'
+    def out = layout.buildDirectory.dir('generated/services')
+    def strategies = enabledAdapters.findAll { strategyClasses.containsKey(it) }.collect { strategyClasses[it] }
+    def analyzers = enabledAdapters.findAll { analyzerClasses.containsKey(it) }.collect { analyzerClasses[it] }
+    inputs.property('enabledAdapters', enabledAdapters.join(','))
+    outputs.dir(out)
+    doLast {
+        def dir = new File(out.get().asFile, 'META-INF/services')
+        delete(out.get().asFile)
+        if (strategies || analyzers) {
+            dir.mkdirs()
+            if (strategies) {
+                new File(dir, 'com.example.casc.ingest.SourceIngestionStrategy').text = strategies.join('\n') + '\n'
+            }
+            if (analyzers) {
+                new File(dir, 'com.example.casc.ingest.SqlDmlAnalyzer').text = analyzers.join('\n') + '\n'
+            }
+        }
+    }
+}
+tasks.named('processResources') { dependsOn 'generateAdapterServices' }
+
+tasks.register('adapters') {
+    group = 'help'
+    description = 'Shows which reader adapters this build includes.'
+    doLast {
+        println enabledAdapters ? "Enabled adapters: ${enabledAdapters.join(', ')}" : 'No adapters enabled (dependency-free build). Use -Padapters=poi,pdfbox,jsoup,jsqlparser'
     }
 }
 
@@ -22,11 +128,24 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21          // requires an installed JDK 21 or newer; no toolchain download is configured
 }
 
+// The jar stays a plain application jar. With adapters, their libraries are copied to build/libs/lib and named in the jar's
+// Class-Path, so "java -jar build/libs/casc-generator.jar" works as long as the lib folder stays next to the jar.
+tasks.register('copyAdapterLibs', Copy) {
+    from { enabledAdapters ? configurations.runtimeClasspath : [] }
+    into layout.buildDirectory.dir('libs/lib')
+}
+
 jar {
     archiveFileName = 'casc-generator.jar'
+    dependsOn 'copyAdapterLibs'
     manifest {
         attributes 'Main-Class': 'com.example.casc.Main',
                    'Implementation-Version': project.version
+    }
+    doFirst {
+        if (enabledAdapters) {
+            manifest.attributes('Class-Path': configurations.runtimeClasspath.files.collect { "lib/${it.name}".toString() }.join(' '))
+        }
     }
 }
 
@@ -49,8 +168,11 @@ tasks.register('unitTestsSeparateLoaders', JavaExec) {
     dependsOn 'classes', 'testClasses'
     classpath = sourceSets.test.output.classesDirs
     mainClass = 'com.example.casc.SplitLoaderRunner'
-    args sourceSets.main.output.classesDirs.asPath + File.pathSeparator + sourceSets.main.output.resourcesDir,
-         sourceSets.test.output.classesDirs.asPath
+    doFirst {
+        def mainPath = sourceSets.main.output.classesDirs.asPath + File.pathSeparator + sourceSets.main.output.resourcesDir +
+                (enabledAdapters ? File.pathSeparator + configurations.runtimeClasspath.asPath : '')
+        args mainPath, sourceSets.test.output.classesDirs.asPath
+    }
     jvmArgs '-Dfile.encoding=UTF-8'
 }
 

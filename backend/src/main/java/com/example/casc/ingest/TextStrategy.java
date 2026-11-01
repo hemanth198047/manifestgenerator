@@ -37,8 +37,7 @@ public final class TextStrategy implements SourceIngestionStrategy {
         boolean fence = false;
         int fences = 0;
         int headings = 0;
-        int terms = 0;
-        int lineage = 0;
+        Prose prose = new Prose(src, b);
         int mdTables = 0;
         for (int i = 0; i < lines.length; i++) {
             String t = lines[i].trim();
@@ -73,33 +72,15 @@ public final class TextStrategy implements SourceIngestionStrategy {
                 i = j - 1;
                 continue;
             }
-            Matcher m = TERM.matcher(t);
-            if (m.matches()) {
-                String raw = m.group(1);
-                boolean wrapped = raw.startsWith("`") || raw.startsWith("**");
-                String name = wrapped ? raw.replaceAll("^(`|\\*\\*)|(`|\\*\\*)$", "") : raw;
-                if (wrapped || identifierLike(name)) {
-                    b.term(new RawTerm(name.trim(), m.group(2).trim(), src, "line " + ln));
-                    terms++;
-                }
-            }
-            if (LINEAGE.matcher(t).find()) {
-                b.note("LINEAGE_TEXT", t.length() > 500 ? t.substring(0, 500) : t, src, "line " + ln);
-                lineage++;
-            }
+            prose.line(t, "line " + ln);
         }
+        int terms = prose.terms();
+        int lineage = prose.lineage();
         if (fences > 0) {
             b.info("TEXT_CODE_BLOCKS_SKIPPED", src, fences + " fenced code block(s) were skipped.",
                     "Add SQL code blocks as separate .sql sources if they should be analysed.");
         }
-        if (terms > 0) {
-            b.info("TEXT_TERM_CANDIDATE", src, terms + " candidate term(s) were extracted from text patterns.",
-                    "Review each term; none is treated as confirmed.");
-        }
-        if (lineage > 0) {
-            b.info("TEXT_LINEAGE_AS_TEXT", src, lineage + " lineage statement(s) were kept as text only; no structure was inferred.",
-                    "Model confirmed lineage in the manifest by hand once the official shape is known.");
-        }
+        prose.summary();
         if (b.tableCount() == 0 && terms == 0 && lineage == 0) {
             b.warn("TEXT_NOTHING_EXTRACTED", src, "No tables, terms or lineage statements were recognised"
                     + (headings > 0 ? " (" + headings + " heading(s) were kept)." : "."),
@@ -109,6 +90,60 @@ public final class TextStrategy implements SourceIngestionStrategy {
                 b.tableCount() + " table(s), " + terms + " candidate term(s), " + lineage + " lineage statement(s), "
                         + headings + " heading(s), " + mdTables + " Markdown table(s)");
         return b.build();
+    }
+
+    /**
+     * Recognises candidate terms ("NAME: description") and lineage statements in ordinary sentences. Shared by every reader that
+     * produces running text (Markdown, Word, PDF, HTML). Everything it finds is a candidate for review, never a confirmed fact.
+     */
+    public static final class Prose {
+        private final String source;
+        private final Builder out;
+        private int terms;
+        private int lineage;
+
+        public Prose(String source, Builder out) {
+            this.source = source;
+            this.out = out;
+        }
+
+        /** One trimmed line of text and where it was found. */
+        public void line(String text, String location) {
+            Matcher m = TERM.matcher(text);
+            if (m.matches()) {
+                String raw = m.group(1);
+                boolean wrapped = raw.startsWith("`") || raw.startsWith("**");
+                String name = wrapped ? raw.replaceAll("^(`|\\*\\*)|(`|\\*\\*)$", "") : raw;
+                if (wrapped || identifierLike(name)) {
+                    out.term(new RawTerm(name.trim(), m.group(2).trim(), source, location));
+                    terms++;
+                }
+            }
+            if (LINEAGE.matcher(text).find()) {
+                out.note("LINEAGE_TEXT", text.length() > 500 ? text.substring(0, 500) : text, source, location);
+                lineage++;
+            }
+        }
+
+        public int terms() {
+            return terms;
+        }
+
+        public int lineage() {
+            return lineage;
+        }
+
+        /** Adds the two aggregate INFO findings. */
+        public void summary() {
+            if (terms > 0) {
+                out.info("TEXT_TERM_CANDIDATE", source, terms + " candidate term(s) were extracted from text patterns.",
+                        "Review each term; none is treated as confirmed.");
+            }
+            if (lineage > 0) {
+                out.info("TEXT_LINEAGE_AS_TEXT", source, lineage + " lineage statement(s) were kept as text only; no structure was inferred.",
+                        "Model confirmed lineage in the manifest by hand once the official shape is known.");
+            }
+        }
     }
 
     private static boolean identifierLike(String s) {

@@ -16,8 +16,8 @@ import java.util.regex.Pattern;
 /**
  * Turns URLs into named SourceInputs so the normal ingestion path handles them.
  * The source name is host/path (never the query) with an extension taken from the URL path, or else from the
- * Content-Type: JSON, plain text, Markdown, CSV, TSV and SQL are read. HTML, YAML, Office and PDF responses are
- * reported as unavailable formats by the ingestion service, with the alternative. Only UTF-8 text is accepted.
+ * Content-Type. Text formats must be UTF-8. Spreadsheets, Word and PDF responses stay binary. The ingestion service reads
+ * each format with an installed adapter, or reports it as unavailable with the alternative.
  */
 public final class UrlSources {
     private UrlSources() {}
@@ -84,8 +84,8 @@ public final class UrlSources {
         if (name.length() > 200) {
             name = name.substring(0, 200);
         }
-        if (SourceIngestionService.isUnavailableExtension(ext)) {
-            return SourceInput.of(name, "");
+        if (SourceIngestionService.isBinaryExtension(ext)) {
+            return SourceInput.binary(name, f.body());
         }
         Matcher m = CHARSET.matcher(f.contentType() == null ? "" : f.contentType());
         if (m.find()) {

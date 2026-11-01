@@ -13,7 +13,12 @@ final class SqlTokenizer {
 
     enum Type { WORD, QIDENT, STRING, NUMBER, SYMBOL }
 
-    record Token(Type type, String text, int line) {
+    /** start and end are character offsets into the tokenized text (end exclusive). */
+    record Token(Type type, String text, int line, int start, int end) {
+        Token(Type type, String text, int line) {
+            this(type, text, line, -1, -1);
+        }
+
         boolean isWord(String w) {
             return type == Type.WORD && text.equalsIgnoreCase(w);
         }
@@ -51,6 +56,8 @@ final class SqlTokenizer {
         int i = 0;
         int line = 1;
         while (i < n) {
+            int tokenStart = i;
+            int before = out.size();
             char c = s.charAt(i);
             char next = i + 1 < n ? s.charAt(i + 1) : '\0';
             if (c == '\n') {
@@ -156,6 +163,10 @@ final class SqlTokenizer {
             } else {
                 out.add(new Token(Type.SYMBOL, String.valueOf(c), line));
                 i++;
+            }
+            if (out.size() > before) {
+                Token t = out.remove(out.size() - 1);
+                out.add(new Token(t.type(), t.text(), t.line(), tokenStart, i));
             }
         }
         return out;

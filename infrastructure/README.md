@@ -44,6 +44,11 @@ The web server fetches URLs on behalf of whoever can reach it; with an allowlist
 Skill and instruction files for Claude and Copilot are in `infrastructure/integrations/`. CI scripts and the optional GitHub workflow are described in `infrastructure/ci/README.md`.
 The tool contracts take inline text only and never read files on the caller's behalf.
 
+## Optional reader adapters
+With adapters enabled the jar needs its libraries: keep `build/libs/lib/` next to `casc-generator.jar` (the jar's `Class-Path` points there), or put the libraries on the class path yourself
+(`java -cp "casc-generator.jar:lib/*" com.example.casc.Main ...`). The launchers run `java -jar` and therefore need the `lib` folder beside the jar. Check what is active with
+`casc-generator capabilities`. Spreadsheet, Word and PDF files in the web UI are uploaded through the browser (Base64); raise `--max-body-bytes` for large files. See `docs/ADAPTERS.md`.
+
 ## Wizard sessions
 Wizard state lives in server memory (200 sessions, 2 hours idle) and is lost on restart; users save a project file to keep it (it contains the source texts: treat it as sensitive).
 The session cookie is `HttpOnly; SameSite=Strict` without `Secure`, because the server itself speaks HTTP. Behind a TLS-terminating proxy, add `Secure` there.

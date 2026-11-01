@@ -19,6 +19,16 @@ public final class TestRunner {
         FuzzTests.register();
         AccessTests.register();
         AccessAudit.register();
+        for (String name : java.util.List.of("com.example.casc.adapters.poi.PoiTests", "com.example.casc.adapters.pdfbox.PdfTests",
+                "com.example.casc.adapters.jsoup.HtmlTests", "com.example.casc.adapters.jsqlparser.JSqlParserTests")) {
+            try {
+                Class.forName(name).getMethod("register").invoke(null);
+            } catch (ClassNotFoundException e) {
+                System.out.println("NOTE  adapter tests not compiled (adapter not enabled): " + name.substring(name.lastIndexOf('.') + 1));
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("cannot register " + name, e);
+            }
+        }
         int failed = 0;
         int skipped = 0;
         for (TestKit.Case c : TestKit.CASES) {

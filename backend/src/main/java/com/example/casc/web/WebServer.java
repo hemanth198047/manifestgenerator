@@ -409,9 +409,21 @@ public final class WebServer implements AutoCloseable {
     // ------------------------------------------------------------------ sources (step 1)
 
     static String sourceBlock(String name, String text) {
+        return sourceBlock(name, text, "");
+    }
+
+    /** One source on the form. A binary file keeps its bytes in the hidden 'data' field as Base64 and shows only a note. */
+    static String sourceBlock(String name, String text, String base64) {
+        String body = base64.isEmpty()
+                ? "<textarea name=\"text\" rows=\"8\" spellcheck=\"false\">" + Html.esc(text) + "</textarea>"
+                : "<input type=\"hidden\" name=\"text\" value=\"\"><span class=\"muted\">Binary file (" + (base64.length() * 3 / 4) + " bytes)</span>";
         return "<div class=\"source\"><input name=\"name\" value=\"" + Html.esc(name)
-                + "\" placeholder=\"file name, e.g. schema.sql\"><textarea name=\"text\" rows=\"8\" spellcheck=\"false\">"
-                + Html.esc(text) + "</textarea></div>\n";
+                + "\" placeholder=\"file name, e.g. schema.sql\">" + body
+                + "<input type=\"hidden\" name=\"data\" value=\"" + Html.esc(base64) + "\"></div>\n";
+    }
+
+    static String sourceBlock(SourceInput s) {
+        return s.isBinary() ? sourceBlock(s.name(), "", s.base64()) : sourceBlock(s.name(), s.text() == null ? "" : s.text(), "");
     }
 
     static String select(String name, String label, List<String> values, String selected) {
@@ -430,7 +442,8 @@ public final class WebServer implements AutoCloseable {
                 + select("mode", "CSV/TSV mode", List.of("auto", "data", "dictionary"), f.getOrDefault("mode", "auto"))
                 + "<label><input type=\"checkbox\" name=\"hasHeader\" value=\"true\"" + (header ? " checked" : "") + "> Header row</label>\n"
                 + "<label>Header row number <input type=\"number\" name=\"headerRow\" min=\"1\" value=\"" + Html.esc(f.getOrDefault("headerRow", "1")) + "\"></label>\n"
-                + "<label>Sampling limit (rows) <input type=\"number\" name=\"maxRows\" min=\"1\" value=\"" + Html.esc(f.getOrDefault("maxRows", "10000")) + "\"></label>\n";
+                + "<label>Sampling limit (rows) <input type=\"number\" name=\"maxRows\" min=\"1\" value=\"" + Html.esc(f.getOrDefault("maxRows", "10000")) + "\"></label>\n"
+                + "<label>Spreadsheet sheet (name or number, empty for all) <input type=\"text\" name=\"sheet\" value=\"" + Html.esc(f.getOrDefault("sheet", "")) + "\"></label>\n";
     }
 
     private void sourcesPage(HttpExchange x, int status, List<SourceInput> sources, Map<String, String> opts,
@@ -438,7 +451,7 @@ public final class WebServer implements AutoCloseable {
         StringBuilder blocks = new StringBuilder();
         for (SourceInput s : sources) {
             if (s.readError() == null) {
-                blocks.append(sourceBlock(s.name(), s.text() == null ? "" : s.text()));
+                blocks.append(sourceBlock(s));
             }
         }
         if (blocks.length() == 0) {
@@ -477,24 +490,26 @@ public final class WebServer implements AutoCloseable {
     static List<SourceInput> sourcesFromForm(Map<String, List<String>> f) {
         List<String> names = f.getOrDefault("name", List.of());
         List<String> texts = f.getOrDefault("text", List.of());
+        List<String> datas = f.getOrDefault("data", List.of());
         List<SourceInput> out = new ArrayList<>();
         for (int i = 0; i < Math.max(names.size(), texts.size()); i++) {
             String n = i < names.size() ? names.get(i).trim() : "";
             String t = i < texts.size() ? texts.get(i) : "";
-            if (n.isEmpty() && t.isBlank()) {
+            String d = i < datas.size() ? datas.get(i).trim() : "";
+            if (n.isEmpty() && t.isBlank() && d.isEmpty()) {
                 continue;
             }
             if (n.isEmpty()) {
                 throw new IllegalArgumentException("Give every source a file name with its extension, for example schema.sql");
             }
-            out.add(SourceInput.of(n, t));
+            out.add(d.isEmpty() ? SourceInput.of(n, t) : SourceInput.fromBase64(n, d));
         }
         return out;
     }
 
     static Map<String, String> optionsFromForm(Map<String, String> f) {
         Map<String, String> m = new LinkedHashMap<>();
-        for (String k : List.of("dialect", "mode", "headerRow", "maxRows")) {
+        for (String k : List.of("dialect", "mode", "headerRow", "maxRows", "sheet")) {
             if (f.get(k) != null && !f.get(k).isBlank()) {
                 m.put(k, f.get(k));
             }
@@ -664,7 +679,8 @@ public final class WebServer implements AutoCloseable {
             h.append("<form method=\"post\" action=\"/draft\">");
             for (SourceInput s : sources) {
                 h.append("<input type=\"hidden\" name=\"name\" value=\"").append(Html.esc(s.name()))
-                        .append("\"><textarea name=\"text\" hidden>").append(Html.esc(s.text())).append("</textarea>");
+                        .append("\"><textarea name=\"text\" hidden>").append(Html.esc(s.isBinary() ? "" : s.text())).append("</textarea>")
+                        .append("<input type=\"hidden\" name=\"data\" value=\"").append(Html.esc(s.base64())).append("\">");
             }
             for (String k : List.of("dialect", "delimiter", "mode", "headerRow", "maxRows")) {
                 if (opts.get(k) != null) {

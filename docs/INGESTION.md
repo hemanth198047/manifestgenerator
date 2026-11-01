@@ -5,8 +5,8 @@ location of everything). A manifest is only generated afterwards, and only as an
 
 ## Rules that apply to every source
 - Text must be valid UTF-8 (a BOM is removed). Invalid bytes make the source unreadable; they are never replaced.
-- Unsupported formats are errors with an alternative, never skipped: XLSX/XLS (Apache POI), DOCX/DOC (Apache POI), PDF (Apache PDFBox),
-  HTML (an approved HTML parser), YAML (an approved YAML parser). Convert to CSV, TSV, text, Markdown or (for OpenAPI) JSON.
+- Formats that need a library are read only when the matching **optional adapter** is enabled (`docs/ADAPTERS.md`): XLSX/XLS and DOCX (Apache POI), PDF (Apache PDFBox), HTML and Confluence (jsoup),
+  SQL DML lineage (JSqlParser). Without the adapter they are errors with an alternative, never skipped. YAML always needs an approved YAML parser (none is supplied). Convert to CSV, TSV, text, Markdown or (for OpenAPI) JSON.
 - Row values from data files are not retained, only column names, inferred types and counts.
 - The same table defined by two sources is reported as `TABLE_CONFLICT` and not merged. Columns with the same name in different
   tables are never merged.
@@ -74,6 +74,10 @@ URLs are fetched with the JDK `HttpClient` and then handled exactly like files. 
   responses are reported as unavailable with the alternative. Confluence pages are HTML even through its JSON API, so use a Markdown, text or CSV export or a plain-text endpoint.
 - **Residual risk**: the connection resolves the host name again after the check, so a hostile DNS server could answer differently. The allowlist limits this to approved names;
   also rely on approved DNS and network controls. On a shared web deployment fetched content is shown to the requesting user, so require authentication (see D-015).
+
+## Spreadsheets, Word, PDF and HTML (optional adapters)
+Read as described in `docs/ADAPTERS.md`; they reuse the rules above: spreadsheet sheets follow the CSV rules (`--sheet` selects one), Word and HTML tables follow the Markdown table rules, and prose in Word, PDF and HTML
+is scanned for candidate terms and lineage text. Locations name the sheet, table, paragraph or page. Binary files are carried as bytes (`contentBase64` in JSON requests).
 
 ## Draft manifest
 Contains database, schemas, tables and columns with descriptions, and interfaces when a direction is chosen. Not inferred: logical services, logical data elements (terms stay candidates),

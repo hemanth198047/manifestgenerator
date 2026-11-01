@@ -25,6 +25,11 @@ import java.util.stream.Stream;
 final class IngestAppTests {
     private IngestAppTests() {}
 
+    /** True when an optional reader adapter for the extension is installed on this class path. */
+    private static boolean adapter(String ext) {
+        return com.example.casc.ingest.SourceIngestionService.standard().readerFor(ext) != null;
+    }
+
     private record Run(int code, String out, String err) {}
 
     /** Asserts an exit code and, on failure, shows everything the command printed. */
@@ -111,8 +116,10 @@ final class IngestAppTests {
                 HttpResponse<String> unavailable = post(http, base + "/sources", form("name", "d.xlsx", "text", "x", "hasHeader", "true"),
                         "application/x-www-form-urlencoded");
                 eq(200, unavailable.statusCode());
-                contains(unavailable.body(), "FORMAT_UNAVAILABLE");
-                contains(unavailable.body(), "Apache POI");
+                contains(unavailable.body(), adapter("xlsx") ? "SOURCE_ENCODING" : "FORMAT_UNAVAILABLE");   // text given for a binary format
+                if (!adapter("xlsx")) {
+                    contains(unavailable.body(), "Apache POI");
+                }
                 excludes(unavailable.body(), "Create a draft manifest");
 
                 eq(400, post(http, base + "/sources", form("name", "", "text", "CREATE TABLE t (a INT);"), "application/x-www-form-urlencoded").statusCode());
@@ -247,7 +254,7 @@ final class IngestAppTests {
                 Path out = dir.resolve("out.json");
                 Run r = cli("ingest", "--input-files", xlsx.toString(), "--db-name", "X", "--output", out.toString());
                 exit(Cli.INVALID, r);
-                contains(r.out(), "FORMAT_UNAVAILABLE");
+                contains(r.out(), adapter("xlsx") ? "SPREADSHEET_UNREADABLE" : "FORMAT_UNAVAILABLE");
                 yes(!Files.exists(out), "no draft after a failed source");
 
                 Path outside = other.resolve("a.sql");
@@ -301,8 +308,12 @@ final class IngestAppTests {
                     contains(draft.body(), "UNRESOLVED_DECISION");
 
                     HttpResponse<String> html = post(http, base + "/sources", form("urls", "http://127.0.0.1:" + port + "/page", "hasHeader", "true"), f);
-                    contains(html.body(), "FORMAT_UNAVAILABLE");
-                    excludes(html.body(), "Create a draft manifest");
+                    if (adapter("html")) {
+                        contains(html.body(), "INGESTED");                      // the HTML adapter reads the page
+                    } else {
+                        contains(html.body(), "FORMAT_UNAVAILABLE");
+                        excludes(html.body(), "Create a draft manifest");
+                    }
                     contains(post(http, base + "/sources", form("urls", "http://127.0.0.1:" + port + "/missing", "hasHeader", "true"), f).body(), "HTTP 404");
                     contains(post(http, base + "/sources", form("urls", "http://127.0.0.2:" + port + "/spec.json", "hasHeader", "true"), f).body(), "not in the URL allowlist");
 

@@ -8,10 +8,11 @@ import java.util.Set;
 /**
  * Ingestion settings, identical for the CLI, REST API and web form.
  * delimiter 0 means "choose by file extension" (.tsv is tab, anything else comma).
- * maxRows is the sampling limit: data rows read per tabular source.
+ * maxRows is the sampling limit: data rows read per tabular source. sheet selects one spreadsheet sheet by name or by
+ * 1-based number; empty means every visible sheet.
  */
 public record IngestOptions(String dialect, char delimiter, boolean hasHeader, int headerRow, String mode,
-                            int maxRows, Map<String, String> columnMap, int maxSourceChars) {
+                            int maxRows, Map<String, String> columnMap, int maxSourceChars, String sheet) {
 
     public static final Set<String> DIALECTS =
             Set.of("auto", "oracle", "db2", "postgresql", "sybase", "snowflake", "teradata", "sqlserver");
@@ -23,12 +24,12 @@ public record IngestOptions(String dialect, char delimiter, boolean hasHeader, i
     }
 
     public static IngestOptions defaults() {
-        return new IngestOptions("auto", (char) 0, true, 1, "auto", 10_000, Map.of(), 10_000_000);
+        return new IngestOptions("auto", (char) 0, true, 1, "auto", 10_000, Map.of(), 10_000_000, "");
     }
 
     /**
      * Keys: dialect, delimiter (comma, tab, semicolon, pipe or one character), hasHeader, headerRow, mode,
-     * maxRows, maxSourceChars, map.table, map.column, map.description, map.type, map.schema.
+     * maxRows, maxSourceChars, sheet, map.table, map.column, map.description, map.type, map.schema.
      * Unknown keys and bad values throw IllegalArgumentException with an actionable message.
      */
     public static IngestOptions fromMap(Map<String, String> in) {
@@ -40,6 +41,7 @@ public record IngestOptions(String dialect, char delimiter, boolean hasHeader, i
         String mode = d.mode;
         int maxRows = d.maxRows;
         int maxChars = d.maxSourceChars;
+        String sheet = d.sheet;
         Map<String, String> map = new LinkedHashMap<>();
         for (Map.Entry<String, String> e : in.entrySet()) {
             String k = e.getKey();
@@ -62,6 +64,7 @@ public record IngestOptions(String dialect, char delimiter, boolean hasHeader, i
                 }
                 case "maxRows" -> maxRows = parseInt(k, v, 1, 1_000_000);
                 case "maxSourceChars" -> maxChars = parseInt(k, v, 1000, 50_000_000);
+                case "sheet" -> sheet = v;
                 default -> {
                     if (k.startsWith("map.") && MAP_FIELDS.contains(k.substring(4))) {
                         if (v.isEmpty()) {
@@ -74,7 +77,7 @@ public record IngestOptions(String dialect, char delimiter, boolean hasHeader, i
                 }
             }
         }
-        return new IngestOptions(dialect, delimiter, hasHeader, headerRow, mode, maxRows, map, maxChars);
+        return new IngestOptions(dialect, delimiter, hasHeader, headerRow, mode, maxRows, map, maxChars, sheet);
     }
 
     private static char parseDelimiter(String v) {

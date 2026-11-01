@@ -79,7 +79,7 @@ public final class AgentTools {
         int i = 0;
         for (Object o : Fields.arr(m.get("sources"), "request.sources")) {
             String p = "request.sources[" + i++ + "]";
-            Fields.only(Fields.obj(o, p), p, Set.of("name", "text"));
+            Fields.only(Fields.obj(o, p), p, Set.of("name", "text", "contentBase64"));
         }
         IngestRequest r = IngestRequest.fromTree(m);
         List<SourceInput> all = new ArrayList<>(r.sources());

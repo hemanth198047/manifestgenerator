@@ -9,17 +9,23 @@ Approval status and internal availability are UNKNOWN until you supply them. Not
 | Gradle `java` plugin | built in | Compile, jar | Yes | none | Part of Gradle | Follows Gradle |
 | Bash and `sha256sum`, or PowerShell | any | CI verification scripts only | No | n/a | Unknown | Unknown |
 
-There are no libraries, no third-party Gradle plugins, no annotation processors, no native code, no repositories and no external services. `settings.gradle` and `build.gradle` configure none.
+The **default build** has no libraries, no third-party Gradle plugins, no annotation processors, no native code, no repositories and no external services. `build.gradle` configures a repository or a jar directory only when you enable an adapter, and only from your approved sources.
 Dependency locking and verification metadata are therefore not needed; see `docs/BUILD.md` for what to do if a library is ever added.
 The optional CI workflow uses no marketplace actions; it relies on the runner image's JDK and Gradle.
 
-## Libraries that would enable blocked features (none is in the build)
-| Capability | Library | Why the JDK is not enough | Status |
-|------------|---------|---------------------------|--------|
-| XLSX, DOCX | Apache POI (with its transitives) | OOXML needs a full reader; raw ZIP/XML scraping is not equivalent | Not approved / not used |
-| PDF text | Apache PDFBox | PDF text extraction is not feasible with the JDK | Not approved / not used |
-| HTML, Confluence pages | JSoup or an equivalent | A reliable HTML parser is a large component | Not approved / not used |
-| YAML parsing (OpenAPI YAML, YAML manifests) | A YAML parser such as Jackson YAML | General YAML is complex; only a narrow emitter was written | Not approved / not used |
-| General SQL, DML lineage | JSqlParser or an equivalent | A restricted DDL reader was written instead | Not approved / not used |
-| Official schema validation | A JSON Schema validator | The official schema has not been supplied | Not approved / not used |
-| JavaFX desktop UI | OpenJFX plus native libraries | Not part of the JDK; needs a desktop session | Not approved / not used |
+## Optional libraries (adapters; none is in the default build)
+Each is enabled only by `-Padapters=...` or `ADAPTERS=...` (see `docs/ADAPTERS.md`, which lists transitive libraries and what was verified). Approval status is unknown for all of them; licenses need your review.
+| Capability | Library | Adapter | Provisional version | Status |
+|------------|---------|---------|---------------------|--------|
+| XLSX, XLS, DOCX | Apache POI | `poi` | 5.2.5 | Optional; .xls verified against 4.0.1, .xlsx/.docx not run |
+| PDF text | Apache PDFBox | `pdfbox` | 3.0.2 | Optional; verified against 2.0.29 |
+| HTML, Confluence | jsoup | `jsoup` | 1.17.2 | Optional; verified against 1.15.3 |
+| SQL DML lineage (table level) | JSqlParser | `jsqlparser` | 4.9 | Optional; run against JSqlParser 4.9 built from the `jsqlparser-4.9` source tag with javacc 7.0.12 (the published artifact was not obtainable); 5.x not run |
+
+## Capabilities that still need something not supplied
+| Capability | Needs | Status |
+|------------|-------|--------|
+| YAML parsing (OpenAPI YAML, YAML manifests) | A YAML parser such as Jackson YAML | Not supplied |
+| Official schema validation | A schema validator and the official schema | Not supplied |
+| JavaFX desktop UI | OpenJFX plus native libraries | Not supplied |
+| MCP server | An approved MCP host or SDK | Not supplied |

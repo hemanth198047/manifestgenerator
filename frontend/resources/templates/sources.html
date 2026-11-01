@@ -1,7 +1,8 @@
 <h1>Step 1: Sources</h1>
 {{banner}}
 <p>Add SQL, CSV, TSV, TXT, Markdown or OpenAPI JSON sources. Each source needs a file name with its extension so the format can be recognised.
-XLSX, DOCX, PDF and HTML are not supported in this dependency-free build; export them to CSV, TSV, text or Markdown first.
+Spreadsheets (XLSX, XLS), Word (DOCX), PDF and HTML need optional reader adapters; the capability list on the home page shows which are installed here.
+Where one is missing, export to CSV, TSV, text or Markdown first.
 Nothing is executed, and row values from data files are not kept.</p>
 <form method="post" action="/sources">
   <div id="sources">
@@ -9,7 +10,7 @@ Nothing is executed, and row values from data files are not kept.</p>
   </div>
 {{urlBox}}
   <p>
-    <input type="file" id="sourceFiles" multiple accept=".sql,.ddl,.csv,.tsv,.txt,.md,.markdown">
+    <input type="file" id="sourceFiles" multiple accept=".sql,.ddl,.csv,.tsv,.txt,.md,.markdown,.json,.xlsx,.xlsm,.xls,.docx,.pdf,.html,.htm">
     <button type="button" id="loadSampleSources">Load samples</button>
   </p>
   <fieldset>

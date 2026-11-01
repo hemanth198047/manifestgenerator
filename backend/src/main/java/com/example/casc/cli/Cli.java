@@ -153,7 +153,7 @@ public final class Cli {
                             Set.of("--overwrite", "--allow-invalid")), out, err);
                 case "ingest":
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
-                            "--mode", "--max-rows", "--map", "--db-name", "--db-type", "--default-schema", "--format",
+                            "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
                             "--url-max-bytes"), Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "tools":
@@ -192,6 +192,7 @@ public final class Cli {
         p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
         p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
+        p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
         p.println("  tools                                                 list the agent tool contracts as JSON");
         p.println("  tool NAME --request FILE|-  [--fail-on-errors]       run ingest_sources, validate_manifest_payload or generate_casc_manifest;");
@@ -344,7 +345,7 @@ public final class Cli {
         }
         Map<String, String> m = new LinkedHashMap<>();
         for (String[] pair : new String[][] {{"--dialect", "dialect"}, {"--delimiter", "delimiter"}, {"--header-row", "headerRow"},
-                {"--mode", "mode"}, {"--max-rows", "maxRows"}}) {
+                {"--mode", "mode"}, {"--max-rows", "maxRows"}, {"--sheet", "sheet"}}) {
             if (o.get(pair[0], null) != null) {
                 m.put(pair[1], o.get(pair[0], null));
             }

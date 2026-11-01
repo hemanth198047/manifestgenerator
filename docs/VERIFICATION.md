@@ -14,6 +14,11 @@
 - Failure reports: a failing test prints the file and line, CLI assertions print the exit code with the command's stdout and stderr, and `-Dcasc.test.trace=true` adds the full stack trace.
 - Line endings: the whole suite was also run on a copy of the repository converted to CRLF (samples, docs, sources, hash file) with a UTF-8 byte-order mark on the skill file. It exposed two problems, now fixed:
   the docs test could not find the frontmatter, and a multi-line CSV value kept its `\r\n`, so the draft manifest (and its hash) differed from a Linux checkout. All 125 tests pass in that setup.
+- Adapters (see docs/ADAPTERS.md for the full table): built and run against the real libraries POI 4.0.1, PDFBox 2.0.29 and jsoup 1.15.3 (Ubuntu archive jars) and JSqlParser 4.9
+  (built from its source tag with javacc, because the published jar was not obtainable). All four together: 144 tests, 143 pass and 1 skips (POI's OOXML engine cannot start with Debian's POI build, so
+  `.xlsx`/`.docx` files could not be read here), in both class-loader modes; each adapter alone and `pdfbox,jsoup` also pass. The packaged jar read a real PDF, a real `.xls`, HTML, a Confluence page JSON and an
+  `INSERT ... SELECT` script, and accepted `contentBase64` uploads over REST. Not run: `.xlsx`/`.docx`, PDFBox 3, newer POI and jsoup, JSqlParser 5 and the published JSqlParser jar, and the Gradle adapter wiring (no Gradle;
+  `infrastructure/ci/build-without-gradle.sh` with `ADAPTERS=` was run instead). Running against jsoup found a real defect (bold text lost before term detection), fixed earlier.
 - Fuzzing: seeded, repeatable tests in the suite (random text through every reader, damaged copies of the samples, damaged manifests, damaged tool requests) and a heavier one-off campaign of
   1,222,461 random and damaged inputs over the readers, manifest mapper, exporter and tool contract with a fresh seed each run: no uncaught exception and no empty success.
 - Phase 7 review found and fixed two defects: a stale home page, and a Windows-style source name such as `C:\specs\orders.csv` producing a wrong table name (now covered by a test).

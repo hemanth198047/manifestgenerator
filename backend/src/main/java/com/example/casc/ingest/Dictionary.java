@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 /** Maps dictionary-style rows (from CSV, TSV or Markdown tables) onto tables and columns. */
-final class Dictionary {
+public final class Dictionary {
     private Dictionary() {}
 
     private static final Map<String, Set<String>> SYNONYMS = Map.of(
@@ -21,19 +21,19 @@ final class Dictionary {
             "type", Set.of("type", "datatype", "columntype"),
             "schema", Set.of("schema", "schemaname"));
 
-    record Mapping(int table, int column, int description, int type, int schema) {
-        boolean usable() {
+    public record Mapping(int table, int column, int description, int type, int schema) {
+        public boolean usable() {
             return column >= 0;
         }
 
-        boolean looksLikeDictionary() {
+        public boolean looksLikeDictionary() {
             return column >= 0 && (description >= 0 || type >= 0);
         }
     }
 
-    record Resolved(Mapping mapping, List<String> problems) {}
+    public record Resolved(Mapping mapping, List<String> problems) {}
 
-    static String norm(String s) {
+    public static String norm(String s) {
         StringBuilder b = new StringBuilder();
         for (char c : s.toLowerCase(Locale.ROOT).toCharArray()) {
             if (Character.isLetterOrDigit(c)) {
@@ -62,7 +62,7 @@ final class Dictionary {
         return -1;
     }
 
-    static Resolved resolve(List<String> headers, Map<String, String> overrides) {
+    public static Resolved resolve(List<String> headers, Map<String, String> overrides) {
         List<String> problems = new ArrayList<>();
         Mapping m = new Mapping(find(headers, "table", overrides, problems), find(headers, "column", overrides, problems),
                 find(headers, "description", overrides, problems), find(headers, "type", overrides, problems),
@@ -92,13 +92,19 @@ final class Dictionary {
      * Rows become columns of tables (grouped by schema and table, in first-seen order). Without a table column and
      * without defaultTable the rows become candidate terms. Blank rows are reported, never dropped silently.
      */
-    static void apply(String source, Mapping m, List<List<String>> rows, List<Integer> lines, String defaultTable,
-                      RawMetadataBundle.Builder out) {
+    public static void apply(String source, Mapping m, List<List<String>> rows, List<Integer> lines, String defaultTable,
+                             RawMetadataBundle.Builder out) {
+        apply(source, m, rows, lines, defaultTable, out, "line ");
+    }
+
+    /** where is the prefix of locations, for example "line " or "sheet 'Data', row ". */
+    public static void apply(String source, Mapping m, List<List<String>> rows, List<Integer> lines, String defaultTable,
+                             RawMetadataBundle.Builder out, String where) {
         Map<String, Acc> tables = new LinkedHashMap<>();
         boolean usedDefault = false;
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
-            String loc = "line " + lines.get(r);
+            String loc = where + lines.get(r);
             String col = cell(row, m.column());
             if (col.isEmpty()) {
                 out.warn("DICT_ROW_SKIPPED", source + ":" + loc, "Row has no value in the column-name field and was not used.",

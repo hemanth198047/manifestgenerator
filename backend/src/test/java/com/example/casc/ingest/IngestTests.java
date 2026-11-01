@@ -15,7 +15,7 @@ public final class IngestTests {
     private IngestTests() {}
 
     static RawMetadataBundle run(String name, String text, IngestOptions o) {
-        return SourceIngestionService.standard().ingest(List.of(SourceInput.of(name, text)), o);
+        return SourceIngestionService.baseline().ingest(List.of(SourceInput.of(name, text)), o);
     }
 
     static RawMetadataBundle run(String name, String text) {
@@ -253,7 +253,11 @@ public final class IngestTests {
                     + "DROP TABLE s.t;\nFROBNICATE s.t;\nALTER TABLE s.other ADD (x INT);\nCOMMENT ON COLUMN s.t.zzz IS 'x';\n"
                     + "GRANT SELECT ON s.t TO bob;\nCREATE INDEX i ON s.t(a);\nCREATE TABLE s.c AS SELECT * FROM s.t;\n");
             List<String> unsupported = b.findings().stream().filter(f -> f.code().equals("SQL_UNSUPPORTED")).map(Finding::path).toList();
-            eq(List.of("t.sql:line 2", "t.sql:line 3", "t.sql:line 4", "t.sql:line 5", "t.sql:line 10"), unsupported);
+            // With a SQL analyzer adapter installed the INSERT on line 3 is analysed (table level) instead of reported as unsupported.
+            eq(SqlStrategy.analyzerCount() > 0
+                            ? List.of("t.sql:line 2", "t.sql:line 4", "t.sql:line 5", "t.sql:line 10")
+                            : List.of("t.sql:line 2", "t.sql:line 3", "t.sql:line 4", "t.sql:line 5", "t.sql:line 10"),
+                    unsupported);
             expect(b, "SQL_UNKNOWN_TARGET");
             expect(b, "SQL_SKIPPED");
             eq(0, table(b, "c").columns().size());

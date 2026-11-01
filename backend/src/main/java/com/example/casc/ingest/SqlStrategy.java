@@ -12,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
@@ -44,6 +46,45 @@ public final class SqlStrategy implements SourceIngestionStrategy {
     private static final Set<String> CLAUSES = Set.of("WHERE", "GROUP", "ORDER", "HAVING", "LIMIT", "QUALIFY", "FETCH", "WINDOW");
     private static final Set<String> MULTI = Set.of("UNION", "INTERSECT", "EXCEPT", "MINUS", "JOIN", "INNER", "LEFT", "RIGHT",
             "FULL", "CROSS", "NATURAL", "LATERAL");
+
+    /** Analyzers found by ServiceLoader (empty in the dependency-free build). */
+    private static final List<String> ANALYZER_PROBLEMS = new ArrayList<>();
+    private static final List<SqlDmlAnalyzer> ANALYZERS = loadAnalyzers();
+
+    /** Analyzers found on the class path that could not be loaded (for example because their library is missing). */
+    public static List<String> analyzerProblems() {
+        return List.copyOf(ANALYZER_PROBLEMS);
+    }
+
+    private static List<SqlDmlAnalyzer> loadAnalyzers() {
+        List<SqlDmlAnalyzer> out = new ArrayList<>();
+        var it = ServiceLoader.load(SqlDmlAnalyzer.class).iterator();
+        while (true) {
+            try {
+                if (!it.hasNext()) {
+                    break;
+                }
+                out.add(it.next());
+            } catch (ServiceConfigurationError | LinkageError e) {
+                String m = String.valueOf(e.getMessage());
+                ANALYZER_PROBLEMS.add("A SQL analyzer adapter could not be loaded (" + e.getClass().getSimpleName() + "): " + (m.length() > 200 ? m.substring(0, 200) : m));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** Number of SQL analyzers that are installed. */
+    public static int analyzerCount() {
+        return ANALYZERS.size();
+    }
+
+    public static List<String> analyzerIds() {
+        List<String> ids = new ArrayList<>();
+        for (SqlDmlAnalyzer a : ANALYZERS) {
+            ids.add(a.id());
+        }
+        return ids;
+    }
 
     @Override public String id() { return "sql"; }
 
@@ -82,6 +123,10 @@ public final class SqlStrategy implements SourceIngestionStrategy {
         final String source;
         final Builder out;
         final Map<String, Tbl> tables = new LinkedHashMap<>();
+        String sql = "";
+        String dialect = "auto";
+        int start;
+        int end;
         int line;
         int unsupported;
         int ignoredConstraints;
@@ -236,8 +281,10 @@ public final class SqlStrategy implements SourceIngestionStrategy {
         Builder b = new Builder();
         String dialect = o.dialect();
         List<Token> tokens;
+        String prepared;
         try {
-            tokens = SqlTokenizer.tokenize(preprocess(in.text(), dialect), dialect);
+            prepared = preprocess(in.text(), dialect);
+            tokens = SqlTokenizer.tokenize(prepared, dialect);
         } catch (SqlException e) {
             b.error("SQL_SYNTAX", in.name() + ":line " + e.line, e.getMessage(),
                     "Fix the SQL text at that line; no statement from this file was analysed.");
@@ -245,9 +292,13 @@ public final class SqlStrategy implements SourceIngestionStrategy {
             return b.build();
         }
         Ctx x = new Ctx(in.name(), b);
+        x.sql = prepared;
+        x.dialect = dialect;
         List<List<Token>> statements = statements(tokens);
         for (List<Token> st : statements) {
             x.line = st.get(0).line();
+            x.start = st.get(0).start();
+            x.end = st.get(st.size() - 1).end();
             try {
                 statement(new Cur(st), x);
             } catch (Fail f) {
@@ -335,8 +386,10 @@ public final class SqlStrategy implements SourceIngestionStrategy {
         } else if (w.equals("COMMENT")) {
             comment(c, x);
         } else if (DML.contains(w)) {
-            x.unsupported(w + " statements are not analysed in this release; no lineage is inferred from them.",
-                    "Document lineage separately; analysing DML needs an approved SQL parser.");
+            if (!analyzeDml(x, w)) {
+                x.unsupported(w + " statements are not analysed" + (ANALYZERS.isEmpty() ? " (no SQL parser adapter is installed)" : " (the installed parser could not interpret it)")
+                        + "; no lineage is inferred from them.", "Document lineage separately; analysing DML needs an approved SQL parser adapter.");
+            }
         } else if (STRUCTURE.contains(w)) {
             x.unsupported(w + " is not applied; the structure shown may differ from the final database.",
                     "Review the script order or supply the final DDL.");
@@ -345,6 +398,31 @@ public final class SqlStrategy implements SourceIngestionStrategy {
         } else {
             x.unsupported("Statement type " + w + " is not recognised and was not analysed.", "Provide DDL in the supported subset.");
         }
+    }
+
+    /** Asks the installed analyzers (if any) about a statement. True when one of them understood it. */
+    private boolean analyzeDml(Ctx x, String kind) {
+        if (ANALYZERS.isEmpty() || x.start < 0 || x.end > x.sql.length() || x.start >= x.end) {
+            return false;
+        }
+        String text = x.sql.substring(x.start, x.end);
+        for (SqlDmlAnalyzer a : ANALYZERS) {
+            List<RawMetadataBundle.LineageHint> hints;
+            try {
+                hints = a.analyze(text, x.dialect, x.source, "line " + x.line);
+            } catch (RuntimeException | LinkageError e) {
+                hints = null;
+            }
+            if (hints != null) {
+                for (RawMetadataBundle.LineageHint h : hints) {
+                    x.out.lineage(h);
+                }
+                x.out.info("SQL_DML_ANALYSED", x.loc(), kind + " statement analysed by " + a.id() + " at table level: " + hints.size()
+                        + " lineage hint(s). Column-level lineage is not inferred.", "Hints are for review; they are never written to a manifest.");
+                return true;
+            }
+        }
+        return false;
     }
 
     private void create(Cur c, Ctx x) throws Fail {
@@ -404,6 +482,7 @@ public final class SqlStrategy implements SourceIngestionStrategy {
         }
         if (!c.peekSym('(')) {
             register(x, t);
+            analyzeDml(x, "CREATE TABLE AS");
             x.unsupported("CREATE TABLE ... AS SELECT / LIKE is not analysed; table '" + t.name + "' was recorded without columns.",
                     "Provide the column definitions or a data dictionary.");
             return;

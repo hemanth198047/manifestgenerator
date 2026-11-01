@@ -84,14 +84,14 @@ and `java -m jdk.jartool/sun.tools.jar.Main` (the same tools the scripts use thr
 | 11 | Copilot file locations confirmed only from secondary sources | Verification | Check against your Copilot version |
 | 12 | Real browser, proxy, internal CA and load testing | Verification | None of these were exercised |
 
-## Blocked features and what unblocks them
+## Blocked features and what unblocks them (adapters added later are marked)
 | Feature | Reason | Minimum established dependency | Alternative workflow today | Work after approval |
 |---------|--------|--------------------------------|----------------------------|---------------------|
-| XLSX and DOCX ingestion | OOXML needs a full reader | Apache POI | Export sheets to CSV/TSV, documents to text or Markdown | Add an adapter behind a Gradle property and source set; tests with generated fixtures |
-| PDF ingestion | No JDK PDF text extraction; tables are not reconstructable reliably | Apache PDFBox | Text export plus CSV tables | Adapter and limitations text; require review for ambiguous layouts |
-| HTML and Confluence | No reliable HTML parser in the JDK | JSoup | Markdown, text or CSV export, or a plain-text endpoint | Adapter for HTML bodies |
+| XLSX and DOCX ingestion | OOXML needs a full reader | Apache POI (**adapter `poi` now provided, off by default; .xlsx/.docx not run here**) | Export sheets to CSV/TSV, documents to text or Markdown | Add an adapter behind a Gradle property and source set; tests with generated fixtures |
+| PDF ingestion | No JDK PDF text extraction; tables are not reconstructable reliably | Apache PDFBox (**adapter `pdfbox` provided, off by default; run against 2.0.29**) | Text export plus CSV tables | Adapter and limitations text; require review for ambiguous layouts |
+| HTML and Confluence | No reliable HTML parser in the JDK | jsoup (**adapter `jsoup` provided, off by default; run against 1.15.3**) | Markdown, text or CSV export, or a plain-text endpoint | Adapter for HTML bodies |
 | YAML input and OpenAPI YAML | General YAML parsing is large | An approved YAML parser | Convert to JSON | Wire the parser into the readers |
-| SQL DML and lineage | Needs a real SQL parser and semantic analysis | JSqlParser or similar | Document lineage separately; DML is reported | New strategy plus lineage model once `sourcedFromColumns` is confirmed |
+| SQL DML and lineage | Needs a real SQL parser and semantic analysis | JSqlParser (**adapter `jsqlparser` provided for table-level lineage, off by default; run against JSqlParser 4.9 built from source, 5.x not run**) | Document lineage separately; DML is reported | New strategy plus lineage model once `sourcedFromColumns` is confirmed |
 | Official schema validation | Schema not supplied | A schema validator library | LOCAL checks | Add the validator and the official schema file |
 | JavaFX UI | Not in the JDK; needs a desktop | OpenJFX and native libraries | Browser UI | Optional module over the same services |
 | MCP | Protocol not implemented | An approved host or SDK | CLI and HTTP contracts | Stdio adapter over the existing tools |

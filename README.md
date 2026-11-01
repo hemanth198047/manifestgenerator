@@ -4,7 +4,7 @@ Generates and validates CasC manifests for the Firmwide Data Catalog. The applic
 no Spring, no Jackson, no JavaFX, no libraries of any kind. It runs on Windows and Linux from one jar.
 
 Current phase: 7 of 7 (complete; verification on Gradle and Windows is still yours to run) (validation, JSON and YAML export, browser UI, CLI, and ingestion of CSV, TSV, TXT, Markdown and a SQL subset
-into an unreviewed draft manifest; OpenAPI JSON and allowlisted URL sources, and a five-step wizard with reconciliation and project files, see `docs/WIZARD.md`; agent tool contracts, skill files and CI, see `docs/INTEGRATION.md`). Documents (DOCX, PDF), spreadsheets, HTML and YAML need libraries that are not part of this build. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
+into an unreviewed draft manifest; OpenAPI JSON and allowlisted URL sources, and a five-step wizard with reconciliation and project files, see `docs/WIZARD.md`; agent tool contracts, skill files and CI, see `docs/INTEGRATION.md`). Spreadsheets (XLSX/XLS), Word, PDF, HTML/Confluence and SQL DML lineage are **optional adapters** (Apache POI, PDFBox, jsoup, JSqlParser) that are off by default and need libraries from your approved sources: `docs/ADAPTERS.md`. YAML input needs a parser that is not supplied. See `docs/CAPABILITIES.md` and `docs/INGESTION.md`.
 
 ## Layout
 

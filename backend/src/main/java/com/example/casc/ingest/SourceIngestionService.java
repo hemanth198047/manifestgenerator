@@ -9,6 +9,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -49,7 +51,15 @@ public final class SourceIngestionService {
         return UNAVAILABLE.containsKey(ext);
     }
 
+    /** Formats whose files are binary: they are read as bytes, never decoded as text. */
+    private static final Set<String> BINARY = Set.of("xlsx", "xlsm", "xls", "docx", "pdf");
+
+    public static boolean isBinaryExtension(String ext) {
+        return BINARY.contains(ext);
+    }
+
     private final Map<String, SourceIngestionStrategy> byExtension = new HashMap<>();
+    private final List<String> adapterProblems = new ArrayList<>();
 
     public SourceIngestionService(List<SourceIngestionStrategy> strategies) {
         for (SourceIngestionStrategy s : strategies) {
@@ -59,8 +69,49 @@ public final class SourceIngestionService {
         }
     }
 
-    public static SourceIngestionService standard() {
+    /** Only the built-in readers, whatever adapters are installed. Used by tests that describe the dependency-free behaviour. */
+    public static SourceIngestionService baseline() {
         return new SourceIngestionService(List.of(new DelimitedStrategy(), new TextStrategy(), new SqlStrategy(), new OpenApiStrategy()));
+    }
+
+    private static volatile SourceIngestionService standard;
+
+    /**
+     * The built-in readers plus every adapter that ServiceLoader finds (spreadsheets, Word, PDF and HTML readers are optional
+     * adapters). An adapter whose library cannot be loaded is skipped and listed in adapterProblems().
+     */
+    public static SourceIngestionService standard() {
+        SourceIngestionService s = standard;
+        if (s == null) {
+            List<SourceIngestionStrategy> all = new ArrayList<>(List.of(new DelimitedStrategy(), new TextStrategy(), new SqlStrategy(), new OpenApiStrategy()));
+            List<String> problems = new ArrayList<>();
+            var it = ServiceLoader.load(SourceIngestionStrategy.class).iterator();
+            while (true) {
+                try {
+                    if (!it.hasNext()) {
+                        break;
+                    }
+                    all.add(it.next());
+                } catch (ServiceConfigurationError | LinkageError e) {
+                    String m = String.valueOf(e.getMessage());
+                    problems.add("An adapter could not be loaded (" + e.getClass().getSimpleName() + "): " + (m.length() > 200 ? m.substring(0, 200) : m));
+                }
+            }
+            s = new SourceIngestionService(all);
+            s.adapterProblems.addAll(problems);
+            standard = s;
+        }
+        return s;
+    }
+
+    /** Adapters that were found on the class path but could not be loaded, for example because their library is missing. */
+    public List<String> adapterProblems() {
+        return List.copyOf(adapterProblems);
+    }
+
+    /** The reader for an extension, or null when there is none. */
+    public SourceIngestionStrategy readerFor(String ext) {
+        return byExtension.get(ext);
     }
 
     /** Lower-case extension of the last path segment, without the dot; empty if none. */
@@ -96,18 +147,41 @@ public final class SourceIngestionService {
         if (inputs.isEmpty()) {
             pre.error("NO_SOURCES", "sources", "No sources were provided.", "Add at least one file.");
         }
-        for (SourceInput in : inputs) {
+        for (SourceInput original : inputs) {
+            SourceInput in = original;
             String ext = extension(in.name());
             if (in.readError() != null) {
                 pre.source(in.name(), ext, "REJECTED", in.readError());
                 pre.error("SOURCE_UNREADABLE", in.name(), in.readError(), "Fix the file or its location and add it again.");
                 continue;
             }
+            if (in.isBinary() && !isBinaryExtension(ext)) {
+                in = SourceInput.fromBytes(in.name(), in.bytes());          // a text format delivered as bytes
+                if (in.readError() != null) {
+                    pre.source(in.name(), ext, "REJECTED", in.readError());
+                    pre.error("SOURCE_UNREADABLE", in.name(), in.readError(), "Fix the file or its location and add it again.");
+                    continue;
+                }
+            }
+            if (ext.equals("json") && !in.isBinary()) {
+                var confluence = ConfluenceJson.unwrap(in);
+                if (confluence.isPresent()) {
+                    if (byExtension.containsKey("html")) {
+                        in = confluence.get();
+                        ext = "html";
+                    } else {
+                        pre.source(in.name(), "Confluence", "UNAVAILABLE", "Confluence page content is HTML and needs an HTML reader");
+                        pre.error("FORMAT_UNAVAILABLE", in.name(), "This is a Confluence page (its content is HTML inside JSON). Reading it needs an HTML reader, "
+                                + "which is not installed in this build.", "Install the HTML adapter (see docs/ADAPTERS.md), or export the page as Markdown, text or CSV.");
+                        continue;
+                    }
+                }
+            }
             Unavailable u = UNAVAILABLE.get(ext);
-            if (u != null) {
+            if (u != null && !byExtension.containsKey(ext)) {
                 pre.source(in.name(), u.format(), "UNAVAILABLE", u.format() + " needs " + u.needs());
                 pre.error("FORMAT_UNAVAILABLE", in.name(), u.format() + " ingestion needs " + u.needs()
-                        + ", which is not part of this dependency-free build.", u.alternative());
+                        + ", which is not installed in this build (optional adapter, see docs/ADAPTERS.md).", u.alternative());
                 continue;
             }
             SourceIngestionStrategy s = byExtension.get(ext);
@@ -117,9 +191,15 @@ public final class SourceIngestionService {
                         "Supported: " + String.join(", ", supportedExtensions()) + ".");
                 continue;
             }
-            if (in.text().length() > options.maxSourceChars()) {
+            if (isBinaryExtension(ext) != in.isBinary()) {
+                pre.source(in.name(), ext, "REJECTED", isBinaryExtension(ext) ? "binary format given as text" : "text format given as binary");
+                pre.error("SOURCE_ENCODING", in.name(), ext.toUpperCase(Locale.ROOT) + " is a binary format; it must be supplied as the file's bytes, not as text.",
+                        "Add the file itself (the web form and the contentBase64 request field carry binary files).");
+                continue;
+            }
+            if (in.size() > options.maxSourceChars()) {
                 pre.source(in.name(), ext, "REJECTED", "too large");
-                pre.error("SOURCE_TOO_LARGE", in.name(), "The source has more than " + options.maxSourceChars() + " characters.",
+                pre.error("SOURCE_TOO_LARGE", in.name(), "The source has more than " + options.maxSourceChars() + (in.isBinary() ? " bytes." : " characters."),
                         "Split the file or raise maxSourceChars.");
                 continue;
             }
