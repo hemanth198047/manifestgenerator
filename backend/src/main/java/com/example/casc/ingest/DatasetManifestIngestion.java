@@ -64,12 +64,12 @@ public final class DatasetManifestIngestion {
             if (matches == null) {
                 findings.add(Finding.warning("METADATA_TABLE_NOT_IN_MANIFEST", metadataCsv.name() + ":line " + row.line(),
                         "Table '" + row.table() + "' is not defined in " + manifestJson.name() + ", so no manifest was generated for it.",
-                        "Check the table name, or add the table to the manifest."));
+                        "Correct the table name in the CSV (names are matched ignoring case), or add the table to the manifest, or delete the row. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
                 continue;
             }
             for (String problem : problems(row)) {
                 findings.add(Finding.warning("METADATA_VALUE_MISSING", metadataCsv.name() + ":line " + row.line(),
-                        "Table '" + row.table() + "': " + problem, "Fill in the value in the metadata file."));
+                        "Table '" + row.table() + "': " + problem, "Fill in the value in the metadata CSV and run again with --overwrite."));
             }
             for (Table t : matches) {
                 String file = fileName(t, matches.size() > 1, usedNames);
@@ -88,7 +88,7 @@ public final class DatasetManifestIngestion {
         }
         if (skipped > 0) {
             findings.add(Finding.info("TABLE_WITHOUT_METADATA", manifestJson.name(), skipped + " table(s) in the manifest have no row in "
-                    + metadataCsv.name() + " and were not generated.", "Add a row for each table that needs a dataset manifest."));
+                    + metadataCsv.name() + " and were not generated.", "If those tables need a dataset manifest, add a row for each to the metadata CSV and run again with --overwrite. Otherwise nothing to do."));
         }
         if (out.isEmpty()) {
             findings.add(Finding.error("NO_TABLES_MATCHED", metadataCsv.name(), "No table in the metadata file matches a table in the manifest.",

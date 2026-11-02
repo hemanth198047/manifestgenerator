@@ -24,6 +24,7 @@ import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
 import com.example.casc.validation.Finding;
+import com.example.casc.validation.FindingGuide;
 import com.example.casc.validation.ValidationReport;
 import com.example.casc.web.WebServer;
 import java.io.IOException;
@@ -158,6 +159,8 @@ public final class Cli {
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
                             "--url-max-bytes", "--manifest-input", "--table-metadata", "--dataset-output"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
+                case "explain":
+                    return explain(args.length > 1 ? args[1] : null, out, err);
                 case "tools":
                     return tools(out);
                 case "tool":
@@ -198,6 +201,7 @@ public final class Cli {
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
+        p.println("  explain [CODE]                                        explain a finding code in plain language (no CODE: list all codes)");
         p.println("  tools                                                 list the agent tool contracts as JSON");
         p.println("  tool NAME --request FILE|-  [--fail-on-errors]       run ingest_sources, validate_manifest_payload or generate_casc_manifest;");
         p.println("         JSON in (file, or '-' for standard input), one JSON document out on standard output; [--url-allow HOST ...]");
@@ -241,10 +245,17 @@ public final class Cli {
             p.println(f.severity() + " " + f.code() + " " + f.path());
             p.println("    " + f.message());
             p.println("    Fix: " + f.suggestion());
+            if (FindingGuide.find(f.code()).isPresent()) {
+                p.println("    More: casc-generator explain " + f.code() + "   (all codes: docs/FINDINGS.md)");
+            }
         }
         p.println("Summary: " + r.errors().size() + " error(s), " + r.warnings().size() + " warning(s), "
                 + r.infos().size() + " info. Validation level: " + ExportService.LEVEL
-                + " (provisional profile; not checked against the official schema).");
+                + " (checked only against this tool's provisional rules; not the official CasC schema and not FDC acceptance).");
+        if (!r.findings().isEmpty()) {
+            p.println("Errors block the export. Warnings need your attention but do not block. Info is for your information. "
+                    + "To understand a finding, run: casc-generator explain CODE");
+        }
     }
 
     private static int validate(Opts o, PrintStream out, PrintStream err) throws UsageException {
@@ -502,6 +513,23 @@ public final class Cli {
         }
         printReport(draft.export().report(), out);
         out.println("Wrote UNREVIEWED draft " + draft.export().format() + " manifest to " + Path.of(output).toAbsolutePath());
+        return OK;
+    }
+
+    private static int explain(String code, PrintStream out, PrintStream err) {
+        if (code == null) {
+            out.println("Finding codes (run 'casc-generator explain CODE' for the meaning, the fix and where to look):");
+            for (FindingGuide.Entry e : FindingGuide.all()) {
+                out.printf("  %-34s %s%n", e.code(), e.title());
+            }
+            return OK;
+        }
+        var found = FindingGuide.find(code);
+        if (found.isEmpty()) {
+            err.println("Unknown finding code '" + code + "'. Run 'casc-generator explain' to list all codes.");
+            return USAGE;
+        }
+        out.print(FindingGuide.text(found.get()));
         return OK;
     }
 

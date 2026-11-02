@@ -55,7 +55,8 @@ Examples that are run by the test suite: `infrastructure/integrations/examples/`
 - **Claude**: `infrastructure/integrations/claude/casc-manifest-generator/SKILL.md`. Copy the folder to `.claude/skills/` (project) or `~/.claude/skills/` (personal).
 - **GitHub Copilot**: `infrastructure/integrations/copilot/copilot-instructions.md` to `.github/copilot-instructions.md`, the `instructions/` folder to `.github/instructions/`, and the same skill folder to `.github/skills/casc-manifest-generator/`.
 - **GitHub Copilot skills (all capabilities)**: `.github/skills/` holds one skill per capability, discovered automatically by Copilot in VS Code, Copilot CLI and the Copilot cloud agent:
-  `casc-ingest-sources`, `casc-draft-manifest`, `casc-validate-manifest`, `casc-export-manifest`, `casc-dataset-manifests`, `casc-agent-tools`, `casc-web-ui` and `casc-capabilities`.
+  `casc-ingest-sources`, `casc-draft-manifest`, `casc-validate-manifest`, `casc-export-manifest`, `casc-dataset-manifests`, `casc-agent-tools`, `casc-web-ui`, `casc-capabilities` and `casc-explain-findings`.
+  Every skill tells the agent to explain each finding in plain words (what it means, why it matters, what to do, where to look) using `casc-generator explain CODE`; all codes are in `docs/FINDINGS.md`.
   A test checks their frontmatter, size and that they name only real commands and tools.
 - The tests check that these files only name real commands and tools, that the skill's frontmatter fits the published limits, and that they say the contracts are not MCP.
 - The skill tells the agent to ask the user for PII and attestation decisions, never to set them itself, and never to claim FDC acceptance.

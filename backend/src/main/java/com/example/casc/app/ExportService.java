@@ -72,8 +72,9 @@ public final class ExportService {
     private List<Finding> roundTrip(ManifestSerializer s, String content) {
         if (!"json".equals(s.format())) {
             return List.of(Finding.info("ROUNDTRIP_UNAVAILABLE", "$",
-                    "Round-trip check is not available for " + s.format() + " (no approved parser).",
-                    "Check the output with an approved YAML tool, or export JSON."));
+                    "The export self-check (write the file, read it back, compare) is not available for " + s.format()
+                    + " because no approved YAML parser is supplied. The file was still written.",
+                    "If you need a checked file, export JSON. Otherwise check the YAML with an approved YAML tool. Details: docs/FINDINGS.md (ROUNDTRIP_UNAVAILABLE)."));
         }
         try {
             String again = s.serialize(ManifestMapper.fromTree(Json.parse(content)).manifest());

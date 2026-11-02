@@ -222,19 +222,88 @@ public final class ManifestMapper {
                 }
                 return c;
             }
-            error("TYPE_MISMATCH", path, "Expected an object.", "Use a JSON object here.");
+            error("TYPE_MISMATCH", path, "Expected an object { ... } here but found " + describe(v) + ". The value was ignored, so checks that depend on it may report missing data.",
+                    "Replace it with a JSON object { ... } (see docs/FINDINGS.md, TYPE_MISMATCH).");
             return null;
+        }
+
+        /** Top-level sections of a dataset manifest (made by "ingest --manifest-input"); they are outside the CasC manifest model. */
+        private static final Set<String> DATASET_SECTIONS = Set.of("datasets", "dgcDataDomains", "upstreamDatasets", "datasetElements",
+                "eucOrManualProcess", "originatingCatalogingSource");
+
+        static String describe(Object v) {
+            if (v == null) {
+                return "null";
+            } else if (v instanceof String) {
+                return "text";
+            } else if (v instanceof Boolean) {
+                return "true/false";
+            } else if (v instanceof Number) {
+                return "a number";
+            } else if (v instanceof List<?>) {
+                return "an array [ ... ]";
+            } else if (v instanceof Map<?, ?>) {
+                return "an object { ... }";
+            }
+            return v.getClass().getSimpleName();
         }
 
         void keys(Map<String, Object> m, String path, String... allowed) {
             Set<String> ok = Set.of(allowed);
+            String known = String.join(", ", allowed);
+            String where = path.isEmpty() ? "at the top level of the manifest" : "in " + path;
             for (String k : m.keySet()) {
-                if (!ok.contains(k)) {
-                    findings.add(Finding.warning("UNKNOWN_FIELD", join(path, k),
-                            "Field is not part of the supported model and is not carried into the output.",
-                            "Remove it, or confirm it against the official CasC specification."));
+                if (ok.contains(k)) {
+                    continue;
+                }
+                String near = closest(k, allowed);
+                String message = "'" + k + "' is not a field of the CasC manifest model that this tool supports " + where + ". "
+                        + "Fields it understands here: " + known + ". "
+                        + "This tool does not check '" + k + "', and 'export' writes only the supported fields, so '" + k + "' would be missing from an exported file "
+                        + "(your original file is not changed).";
+                String fix;
+                if (near != null) {
+                    fix = "Did you mean '" + near + "'? If so, correct the spelling. Otherwise remove '" + k + "'. Details: docs/FINDINGS.md (UNKNOWN_FIELD).";
+                } else if (path.isEmpty() && DATASET_SECTIONS.contains(k)) {
+                    fix = "If this is a dataset manifest (made by 'ingest --manifest-input'), nothing needs fixing: keep the file as it is and do NOT run 'export' on it, "
+                            + "because export would drop '" + k + "'. This build cannot validate dataset manifests; review them against the official CasC specification. "
+                            + "If it is meant to be a CasC manifest, remove '" + k + "'. Details: docs/FINDINGS.md (UNKNOWN_FIELD).";
+                } else {
+                    fix = "Remove '" + k + "' if it is not needed. If the official CasC specification requires it, this tool cannot carry it yet: keep your original file "
+                            + "instead of exporting, and tell the tool owners. Details: docs/FINDINGS.md (UNKNOWN_FIELD).";
+                }
+                findings.add(Finding.warning("UNKNOWN_FIELD", join(path, k), message, fix));
+            }
+        }
+
+        /** The allowed name that differs from the given one only by case or by one or two edits, or null. */
+        private static String closest(String k, String[] allowed) {
+            String best = null;
+            int bestD = 3;
+            for (String a : allowed) {
+                int d = a.equalsIgnoreCase(k) ? 0 : edit(k.toLowerCase(java.util.Locale.ROOT), a.toLowerCase(java.util.Locale.ROOT));
+                if (d < bestD) {
+                    bestD = d;
+                    best = a;
                 }
             }
+            return best;
+        }
+
+        private static int edit(String a, String b) {
+            int[] prev = new int[b.length() + 1];
+            for (int j = 0; j <= b.length(); j++) {
+                prev[j] = j;
+            }
+            for (int i = 1; i <= a.length(); i++) {
+                int[] cur = new int[b.length() + 1];
+                cur[0] = i;
+                for (int j = 1; j <= b.length(); j++) {
+                    cur[j] = Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1));
+                }
+                prev = cur;
+            }
+            return prev[b.length()];
         }
 
         String str(Map<String, Object> m, String k, String path) {
@@ -245,7 +314,8 @@ public final class ManifestMapper {
             if (v instanceof String s) {
                 return s;
             }
-            error("TYPE_MISMATCH", join(path, k), "Expected a string.", "Use a JSON string.");
+            error("TYPE_MISMATCH", join(path, k), "Expected text (a string in quotes) but found " + describe(v) + ". The value was ignored.",
+                    "Write the value as text in double quotes, for example \"value\" (see docs/FINDINGS.md, TYPE_MISMATCH).");
             return null;
         }
 
@@ -257,7 +327,8 @@ public final class ManifestMapper {
             if (v instanceof Boolean b) {
                 return b;
             }
-            error("TYPE_MISMATCH", join(path, k), "Expected true or false.", "Use a JSON boolean, not a string.");
+            error("TYPE_MISMATCH", join(path, k), "Expected true or false but found " + describe(v) + ". The value was ignored.",
+                    "Write true or false without quotes (see docs/FINDINGS.md, TYPE_MISMATCH).");
             return null;
         }
 
@@ -274,8 +345,8 @@ public final class ManifestMapper {
             if (o.isPresent()) {
                 return o.get();
             }
-            error("ENUM_INVALID", path, "'" + text + "' is not an allowed value.",
-                    "Use exactly one of: " + labels(type) + " (case-sensitive).");
+            error("ENUM_INVALID", path, "'" + text + "' is not an allowed value here. The allowed values are: " + labels(type) + ". Matching is exact and case-sensitive.",
+                    "Replace '" + text + "' with exactly one of: " + labels(type) + " (see docs/FINDINGS.md, ENUM_INVALID).");
             return null;
         }
 
@@ -290,7 +361,8 @@ public final class ManifestMapper {
                 return null;
             }
             if (!(v instanceof List<?> l)) {
-                error("TYPE_MISMATCH", join(path, k), "Expected an array.", "Use a JSON array of strings.");
+                error("TYPE_MISMATCH", join(path, k), "Expected an array of text values [ \"a\", \"b\" ] but found " + describe(v) + ". The value was ignored.",
+                        "Write it as an array, for example [\"value\"] (see docs/FINDINGS.md, TYPE_MISMATCH).");
                 return null;
             }
             List<String> out = new ArrayList<>();
@@ -298,7 +370,8 @@ public final class ManifestMapper {
                 if (l.get(i) instanceof String s) {
                     out.add(s);
                 } else {
-                    error("TYPE_MISMATCH", join(path, k) + "[" + i + "]", "Expected a string.", "Use a JSON string.");
+                    error("TYPE_MISMATCH", join(path, k) + "[" + i + "]", "Expected text (a string in quotes) but found " + describe(l.get(i)) + ". The item was ignored.",
+                            "Write the item as text in double quotes (see docs/FINDINGS.md, TYPE_MISMATCH).");
                 }
             }
             return out;
@@ -311,7 +384,8 @@ public final class ManifestMapper {
                 return null;
             }
             if (!(v instanceof List<?> l)) {
-                error("TYPE_MISMATCH", join(path, k), "Expected an array.", "Use a JSON array of objects.");
+                error("TYPE_MISMATCH", join(path, k), "Expected an array of objects [ { ... } ] but found " + describe(v) + ". The value was ignored.",
+                        "Write it as an array of objects (see docs/FINDINGS.md, TYPE_MISMATCH).");
                 return null;
             }
             List<Map<String, Object>> out = new ArrayList<>();

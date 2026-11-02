@@ -35,6 +35,13 @@ Requests carry inline text only (the tools cannot read other files) and unknown 
 3. Run `generate_casc_manifest` with the answers. Present `content`, then errors, warnings and open `decisions` separately.
 4. If `exportable` is false, explain each error with its path and correction, ask the user, and run again. Never delete data to make validation pass.
 
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
+
 ## Rules
 - Never set an attestation, PII element or category on your own. Add candidate terms or structures to `userInputs` only when the user agrees.
 - The EON ID and system name are kept outside the manifest.

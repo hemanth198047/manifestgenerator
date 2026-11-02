@@ -21,5 +21,12 @@ description: Reports what the local casc-generator build can and cannot do (avai
 - Never available: YAML input (no approved parser), official CasC schema validation, FDC acceptance, a desktop UI.
 - When a format is unavailable the application reports it as an error with an alternative; suggest the alternative (export to CSV, TSV, text, Markdown or JSON). Do not convert files yourself.
 
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
+
 ## Rules
 - Validation is LOCAL against a provisional profile. Never say a manifest is valid for, or accepted by, the Firmwide Data Catalog.

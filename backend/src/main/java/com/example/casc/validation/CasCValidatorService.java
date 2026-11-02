@@ -26,7 +26,7 @@ public final class CasCValidatorService {
         r.run();
         for (String d : unresolvedDecisions) {
             r.out.add(Finding.warning("UNRESOLVED_DECISION", "decisions", d,
-                    "Resolve this decision, or explicitly accept it, before export."));
+                    "Make this decision and record it in the manifest, or explicitly acknowledge it where the tool allows. Details: docs/INTEGRATION.md."));
         }
         return new ValidationReport(r.out);
     }
@@ -52,15 +52,15 @@ public final class CasCValidatorService {
 
         void required(String v, String path, String what) {
             if (blank(v)) {
-                out.add(Finding.error("REQ_BLANK", path, what + " is required and must not be blank.",
-                        "Provide a non-blank value."));
+                out.add(Finding.error("REQ_BLANK", path, what + " is required, but it is missing, empty or only spaces.",
+                        "Fill in " + what + " at this path with a real value (not blank)."));
             }
         }
 
         void duplicate(Set<String> seen, String v, String path, String scope) {
             if (!blank(v) && !seen.add(v)) {
-                out.add(Finding.error("DUP_NAME", path, "'" + v + "' is already used in this " + scope + ".",
-                        "Use a unique name within the " + scope + "."));
+                out.add(Finding.error("DUP_NAME", path, "The name '" + v + "' appears more than once in this " + scope + ". Names must be unique inside a " + scope + " so that references are not ambiguous.",
+                        "Rename or remove one of the entries called '" + v + "' in this " + scope + "."));
             }
         }
 
@@ -69,15 +69,15 @@ public final class CasCValidatorService {
                 return;
             }
             if (k.isBlank()) {
-                out.add(Finding.warning("KEY_BLANK", path, "systemKey is present but blank.",
-                        "Remove it or supply a value."));
+                out.add(Finding.warning("KEY_BLANK", path, "systemKey is present but empty, so it cannot identify anything.",
+                        "Give systemKey a value, or delete the systemKey field."));
                 return;
             }
             String prev = keys.putIfAbsent(k, path);
             if (prev != null) {
                 out.add(Finding.error("KEY_DUP", path,
-                        "systemKey '" + k + "' is already used at " + prev + " (provisional rule: unique across the manifest).",
-                        "Choose a different systemKey."));
+                        "systemKey '" + k + "' is already used at " + prev + ". In this tool's provisional rules every systemKey must be unique across the whole manifest.",
+                        "Choose a different systemKey for this item or for " + prev + "."));
             }
         }
 
@@ -87,25 +87,25 @@ public final class CasCValidatorService {
                 String v = items.get(i);
                 String p = path + "[" + i + "]";
                 if (blank(v)) {
-                    out.add(Finding.error("REQ_BLANK", p, "Reference must not be blank.", "Remove it or name a " + what + "."));
+                    out.add(Finding.error("REQ_BLANK", p, "This reference is blank. A reference must name a " + what + " that is declared in the manifest.", "Delete this entry, or write the name of a declared " + what + "."));
                 } else if (!known.contains(v)) {
-                    out.add(Finding.error(code, p, "'" + v + "' does not match any declared " + what + ".",
-                            "Declare the " + what + " or correct the name."));
+                    out.add(Finding.error(code, p, "'" + v + "' does not match any " + what + " declared in this manifest. Names must match exactly, including upper and lower case.",
+                            "Add a " + what + " called '" + v + "' to the manifest, or correct this name so it matches a declared one."));
                 }
             }
         }
 
         void ref(String v, Set<String> known, String path, String code, String what) {
             if (v != null && !known.contains(v)) {
-                out.add(Finding.error(code, path, "'" + v + "' does not match any declared " + what + ".",
-                        "Declare the " + what + " or correct the name."));
+                out.add(Finding.error(code, path, "'" + v + "' does not match any " + what + " declared in this manifest. Names must match exactly, including upper and lower case.",
+                        "Add a " + what + " called '" + v + "' to the manifest, or correct this name so it matches a declared one."));
             }
         }
 
         void unqualified(String v, String path, String what) {
             if (v != null && v.contains(".")) {
-                out.add(Finding.error("NAME_QUALIFIED", path, what + " '" + v + "' must be unqualified (no periods).",
-                        "Use only the " + what + " itself, without database or schema prefixes."));
+                out.add(Finding.error("NAME_QUALIFIED", path, what + " '" + v + "' contains a period. Schema, table and column names must be unqualified: no database or schema prefix.",
+                        "Keep only the " + what + " itself, for example the part after the last period of '" + v + "'."));
             }
         }
 
@@ -113,25 +113,25 @@ public final class CasCValidatorService {
             List<PiiElement> p = nz(pii);
             if (att == null) {
                 out.add(Finding.warning("ATTEST_MISSING", path + ".sensitiveDataAttestation",
-                        "No sensitive-data attestation has been made.",
-                        "Set Yes or No after review. It is never inferred automatically."));
+                        "This column or field has no sensitive-data attestation. Each one needs a reviewed answer (Yes or No), and this tool never decides it for you.",
+                        "After review, add sensitiveDataAttestation: Yes or No here. If Yes, also list piiElements and dataSubjectCategories."));
             }
             if (att == Attestation.YES && p.isEmpty()) {
                 out.add(Finding.error("PII_REQUIRED", path + ".piiElements",
-                        "Attestation is Yes but no PII elements are listed.", "List at least one PII element."));
+                        "The attestation is Yes (sensitive data), but no PII elements are listed.", "List at least one entry in piiElements, or change the attestation to No if the review shows no sensitive data."));
             }
             if (att != Attestation.YES && !p.isEmpty()) {
                 out.add(Finding.error("PII_CONFLICT", path + ".sensitiveDataAttestation",
-                        "PII elements are listed but the attestation is " + (att == null ? "missing" : "No") + ".",
-                        "Set the attestation to Yes, or remove the PII elements after review."));
+                        "PII elements are listed but the attestation is " + (att == null ? "missing" : "No") + ", which contradicts them.",
+                        "If the data is sensitive, set sensitiveDataAttestation to Yes. If it is not, remove the PII elements. Decide after review; the tool cannot decide."));
             }
             for (int i = 0; i < p.size(); i++) {
                 required(p.get(i).name(), path + ".piiElements[" + i + "].name", "PII element name");
             }
             if (!p.isEmpty() && nz(cats).isEmpty()) {
                 out.add(Finding.error("PII_CATEGORY_REQUIRED", path + ".dataSubjectCategories",
-                        "PII elements are present but no data subject category is given.",
-                        "Add at least one of: Client, Worker, Third Party."));
+                        "PII elements are present but no data subject category says whose data it is.",
+                        "Add dataSubjectCategories with at least one of: Client, Worker, Third Party."));
             }
         }
 
@@ -164,16 +164,16 @@ public final class CasCValidatorService {
                 duplicate(seen, s.name(), p + ".name", "manifest's logical services");
                 if (s.isDeployedOnPrem() == null) {
                     out.add(Finding.error("BOOL_MISSING", p + ".isDeployedOnPrem",
-                            "isDeployedOnPrem must be stated explicitly as true or false.",
-                            "Set true or false; a missing value is not treated as false."));
+                            "This logical service does not say whether it is deployed on premises. A missing value is not treated as false.",
+                            "Add isDeployedOnPrem: true (on premises) or false (cloud)."));
                 } else if (!s.isDeployedOnPrem() && blank(s.cloudProvider())) {
                     out.add(Finding.error("CLOUD_REQUIRED", p + ".cloudProvider",
-                            "cloudProvider is required when the service is not deployed on premises.",
-                            "Provide the cloud provider."));
+                            "The service is not deployed on premises, so it must name its cloud provider.",
+                            "Add cloudProvider with the provider name, or set isDeployedOnPrem to true if the service is on premises."));
                 } else if (s.isDeployedOnPrem() && !blank(s.cloudProvider())) {
                     out.add(Finding.warning("CLOUD_UNEXPECTED", p + ".cloudProvider",
-                            "cloudProvider is set although the service is deployed on premises.",
-                            "Remove cloudProvider or set isDeployedOnPrem to false."));
+                            "cloudProvider is set, but the service is marked as deployed on premises. These two contradict each other.",
+                            "Remove cloudProvider, or set isDeployedOnPrem to false if the service really is in the cloud."));
                 }
                 systemKey(s.systemKey(), p + ".systemKey");
             }
@@ -201,8 +201,8 @@ public final class CasCValidatorService {
                 required(x.name(), p + ".name", "Interface name");
                 duplicate(seen, x.name(), p + ".name", "manifest's interfaces");
                 if (x.type() == null) {
-                    out.add(Finding.error("REQ_MISSING", p + ".type", "Interface type is required.",
-                            "Use SOURCING (system consumes data) or DISTRIBUTION (system provides data)."));
+                    out.add(Finding.error("REQ_MISSING", p + ".type", "This interface has no type. The type says in which direction the data flows.",
+                            "Add type: SOURCING (this system consumes the data) or DISTRIBUTION (this system provides the data)."));
                 }
                 refs(x.logicalServices(), services, p + ".logicalServices", "REF_LOGICAL_SERVICE", "logical service");
                 systemKey(x.systemKey(), p + ".systemKey");
@@ -254,8 +254,8 @@ public final class CasCValidatorService {
                 duplicate(seen, d.logicalName(), p + ".logicalName", "manifest's databases");
                 if (d.logicalName() != null && d.logicalName().chars().anyMatch(Character::isWhitespace)) {
                     out.add(Finding.warning("DB_NAME_PROVISIONAL", p + ".logicalName",
-                            "Logical name contains whitespace; naming rules are not yet confirmed.",
-                            "Check the TAI logical name against the official specification."));
+                            "The logical database name contains a space. The naming rules for TAI logical names are not confirmed in this tool, so it may be rejected later.",
+                            "Check the name against the official CasC specification and remove the space if the rules forbid it."));
                 }
                 systemKey(d.systemKey(), p + ".systemKey");
                 schemas(d, p);
@@ -304,8 +304,8 @@ public final class CasCValidatorService {
                 pii(c.sensitiveDataAttestation(), c.piiElements(), c.dataSubjectCategories(), p);
                 if (c.sourcedFromColumns() != null && !c.sourcedFromColumns().isEmpty()) {
                     out.add(Finding.info("LINEAGE_UNVERIFIED", p + ".sourcedFromColumns",
-                            "Lineage is carried through unchanged; its structure and references are not validated.",
-                            "Confirm the sourcedFromColumns shape against the official schema."));
+                            "sourcedFromColumns is copied through exactly as written. This tool does not check its structure or references because the official shape is not confirmed.",
+                            "Check this entry against the official CasC specification yourself."));
                 }
             }
         }

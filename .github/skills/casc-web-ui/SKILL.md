@@ -23,3 +23,10 @@ Or use the launcher: Linux/macOS `infrastructure/launchers/run-web.sh`, Windows 
 
 ## Workflow
 Start the server in a terminal the user can see, tell them the address, and explain the five steps in the page (1 Sources, 2 System, 3 Classification, 4 Governance, 5 Validation and export; details in `docs/WIZARD.md`). Do not run it in the background without telling the user.
+
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.

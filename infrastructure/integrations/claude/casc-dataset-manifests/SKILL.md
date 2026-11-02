@@ -31,7 +31,10 @@ All three options are required together. Exit codes: 0 written, 1 errors (nothin
 5. Show a generated file when asked. Each holds one `datasets` entry: `name` (`schema.table`), `format` ResultSet, `boundaries`, `dgcDataDomains`,
    `upstreamDatasets` (name and `producerEonId`), `datasetElements` (`name`, `description`, `systemDataElements`), `eucOrManualProcess`, `originatingCatalogingSource`.
 
-## Rules
-- Do not invent metadata. A missing domain, boundary, upstream dataset or EON ID is reported by the tool; ask the user to fill it in the CSV.
+## Validating the generated files
+`run-cli validate` on a generated file reports `UNKNOWN_FIELD` for `datasets`. That is expected: dataset manifests are outside the CasC manifest model that `validate` understands. Explain it with `run-cli explain UNKNOWN_FIELD` (all codes: `docs/FINDINGS.md`). Never run `export` on these files: export writes only the supported fields and would drop `datasets`.
+Explain every warning the command prints in plain words: what it means, why it matters, what to do and where to look.
+
+## Rules- Do not invent metadata. A missing domain, boundary, upstream dataset or EON ID is reported by the tool; ask the user to fill it in the CSV.
 - The output is not validated against the official schema and is not accepted by the Firmwide Data Catalog until the owners review it. Never say otherwise.
 - Do not send the files to any other service.

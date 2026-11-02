@@ -28,5 +28,17 @@ description: Validates an existing CasC manifest (JSON) against the local provis
 - Schema, table and column names are unqualified (no periods).
 - An attestation of Yes needs at least one PII element and one data subject category.
 
+### `UNKNOWN_FIELD` on a dataset manifest
+A manifest made by `ingest --manifest-input` has top-level `datasets` and `dgcDataDomains`. They are outside the CasC manifest model, so `validate` reports `UNKNOWN_FIELD` for them.
+This is expected: the file is fine and unchanged. Tell the user this build cannot validate dataset manifests (review them against the official CasC specification) and that they must **not** run `export` on such a file, because export writes only the supported fields and would drop `datasets`.
+The model `validate` understands: top level `logicalServices`, `systemDataElements`, `interfaces`, `dataEntities`, `databases`, `transformations`, each with its own known fields (the message lists them).
+
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
+
 ## Rules
 - The level reached is LOCAL (a provisional profile). It is not the official CasC schema and not FDC acceptance; say so.

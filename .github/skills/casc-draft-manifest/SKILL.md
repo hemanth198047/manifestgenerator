@@ -27,6 +27,13 @@ Use the `casc-agent-tools` skill: `ingest_sources`, then `generate_casc_manifest
 The TAI database logical name, database type, default schema, logical services and whether each is deployed on premises, cloud provider, table types (Transaction or Reference), interface directions,
 logical element names, PII elements, data subject categories (Client, Worker, Third Party) and the sensitive-data attestation (Yes or No) for each column or field.
 
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
+
 ## Rules
 - Never set or clear an attestation, PII element or data subject category on your own. A name that looks sensitive is a reason to ask, nothing more.
 - The EON ID and system name stay outside the manifest. Never put them into manifest fields.

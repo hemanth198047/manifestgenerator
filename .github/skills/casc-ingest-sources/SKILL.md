@@ -28,6 +28,16 @@ Runs the documented `ingest` command of the locally built `casc-generator`. It e
 3. XLSX, DOCX, PDF and HTML need optional adapters (see the `casc-capabilities` skill). If one is unavailable, ask the user for a CSV, TSV, text or Markdown export. Do not convert it yourself. YAML is never read; ask for JSON.
 4. The same table defined in two sources is reported as `TABLE_CONFLICT` and not merged; ask the user which source is authoritative.
 
+### Manifests are not sources
+`OPENAPI_NOT_RECOGNISED` on a `.json` file usually means a CasC manifest or dataset manifest was given as a source. To check a manifest use `casc-validate-manifest`; to build per-table dataset manifests use `casc-dataset-manifests`.
+
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
+
 ## Rules
 - Candidate terms, structures and lineage hints are suggestions only; never promote them to manifest content without the user's agreement.
 - Row values from data files are not kept, only column names, inferred types and counts.

@@ -23,3 +23,14 @@ description: Reads a CasC manifest in JSON, validates it and writes it as normal
 1. Confirm input, output path and format with the user.
 2. Run the command and show the validation summary it prints.
 3. If it reports errors, use the `casc-validate-manifest` skill to explain and fix them; do not use `--allow-invalid` to hide them.
+
+### Export drops unsupported fields
+`export` rewrites the manifest from the supported model only (`logicalServices`, `systemDataElements`, `interfaces`, `dataEntities`, `databases`, `transformations`). Any other field, such as `datasets` or `dgcDataDomains` in a dataset manifest, is **not written** (warning `UNKNOWN_FIELD`).
+Before exporting, run `casc-validate-manifest` first; if it reports `UNKNOWN_FIELD` for fields the user needs, do not export. Tell the user why and keep their original file.
+
+## Explaining findings (always do this)
+Every finding has a severity (ERROR blocks export, WARNING needs attention but does not block, INFO is for information), a code, a path (where in the file), a message and a fix.
+For each one, tell the user in plain words: **what it means**, **why it matters**, **exactly what to do**, and **where to look**. Do not just repeat the code.
+- Get the authoritative explanation with `run-cli explain CODE` (for example `run-cli explain UNKNOWN_FIELD`); `run-cli explain` lists every code. The same text is in `docs/FINDINGS.md`.
+- "Validation level LOCAL" means the manifest was checked only against this tool's provisional rules: not the official CasC schema and not FDC acceptance. Say so whenever you report a result.
+- Never tell the user to ignore a finding without saying why it is safe. Never hide warnings.
