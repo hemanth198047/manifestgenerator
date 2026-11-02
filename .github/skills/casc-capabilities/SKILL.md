@@ -1,0 +1,25 @@
+---
+name: casc-capabilities
+description: Reports what the local casc-generator build can and cannot do (available and unavailable formats, optional adapters for XLSX, DOCX, PDF, HTML and SQL DML, validation level) and its version. Use when the user asks what formats are supported, why a file type was rejected, how to enable an adapter, or what level of validation to expect.
+---
+
+# Capabilities, adapters and limits
+
+## Before you start
+- Needs JDK 21 and the built jar `build/libs/casc-generator.jar` (build it once with `./gradlew jar`; see the project README).
+- Run commands from the repository root with the launcher: Linux/macOS `infrastructure/launchers/run-cli.sh`, Windows `infrastructure\launchers\run-cli.bat`. Below this is written `run-cli`.
+- If a command fails, report its message and exit code. Do not work around it, and do not read files the user did not give you.
+
+## Commands
+- `run-cli capabilities [--json]`: every capability with its status AVAILABLE or UNAVAILABLE and a detail line.
+- `run-cli version`, `run-cli help`.
+
+## What to tell the user
+- Always available: CSV/TSV, TXT/Markdown, SQL (documented subset: CREATE TABLE/VIEW, ALTER TABLE ADD, COMMENT ON, PRIMARY KEY), OpenAPI/Swagger JSON, URL sources (allowlisted hosts only), manifest import/export in JSON, YAML export, local validation, the web UI, and dataset manifests per table.
+- Optional adapters, off by default, need libraries from the user's approved sources (see `docs/ADAPTERS.md`): XLSX/XLS and DOCX (Apache POI), PDF (Apache PDFBox), HTML and Confluence (jsoup), SQL DML lineage (JSqlParser).
+  Enable them at build time with `-Padapters=...`. The adapter sources live in `backend/src/main/java/com/example/casc/ingest/{poi,pdfbox,jsoup,jsqlparser}` and are compiled only when enabled.
+- Never available: YAML input (no approved parser), official CasC schema validation, FDC acceptance, a desktop UI.
+- When a format is unavailable the application reports it as an error with an alternative; suggest the alternative (export to CSV, TSV, text, Markdown or JSON). Do not convert files yourself.
+
+## Rules
+- Validation is LOCAL against a provisional profile. Never say a manifest is valid for, or accepted by, the Firmwide Data Catalog.

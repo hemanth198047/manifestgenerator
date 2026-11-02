@@ -17,6 +17,7 @@ public final class TestRunner {
         IngestAppTests.register();
         WizardWebTests.register();
         ToolTests.register();
+        SkillFileTests.register();
         FuzzTests.register();
         AccessTests.register();
         AccessAudit.register();
