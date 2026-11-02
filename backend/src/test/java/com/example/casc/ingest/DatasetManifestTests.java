@@ -71,7 +71,8 @@ public final class DatasetManifestTests {
             eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(d.get("dgcDataDomains")));
             eq("[{\"product\":[\"Firmwide - *All Product Types\"]}]", Json.writeCompact(d.get("boundaries")));
             eq("[{\"name\":\"a2.dbo.TAPSAccount\",\"producerEonId\":3212}]", Json.writeCompact(d.get("upstreamDatasets")));
-            eq("[{\"name\":\"accountID\",\"description\":\"Account ID\"},{\"name\":\"AccountUUID\",\"description\":\"Account UUID\"},{\"name\":\"noElement\"}]",
+            eq("[{\"name\":\"accountID\",\"description\":\"Account ID\",\"systemDataElements\":[\"Account ID\"]},"
+                    + "{\"name\":\"AccountUUID\",\"description\":\"Account UUID\",\"systemDataElements\":[\"Account UUID\"]},{\"name\":\"noElement\"}]",
                     Json.writeCompact(d.get("datasetElements")));
         });
         test("datasets: a metadata row for a table that is not in the manifest is a warning, a table without a row is skipped", () -> {

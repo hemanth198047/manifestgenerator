@@ -156,6 +156,7 @@ public final class DatasetManifestIngestion {
             e.put("name", c.physicalName());
             if (c.systemDataElement() != null) {
                 e.put("description", c.systemDataElement());
+                e.put("systemDataElements", List.of(c.systemDataElement()));
             }
             els.add(e);
         }

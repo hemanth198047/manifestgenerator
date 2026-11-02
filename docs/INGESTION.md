@@ -109,7 +109,7 @@ and symbolic links, ignore unknown file types (reported as notes), and read file
   `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
 - **One manifest per table that has a metadata row** (`manifest_<table>.json`; the schema is added to the file name only when two schemas share a table name).
   Each holds one `datasets` entry: `name` = `schema.table`, `format` = `ResultSet`, `boundaries` = `[{product:[boundary]}]`, `dgcDataDomains`,
-  `upstreamDatasets` = `[{name, producerEonId}]`, `datasetElements` (one per column; description = its system data element),
+  `upstreamDatasets` = `[{name, producerEonId}]`, `datasetElements` (one per column: `name`, `description` and `systemDataElements: [<the column's systemDataElement>]`; both are left out when the column has no system data element),
   `eucOrManualProcess` = `{}`, `originatingCatalogingSource` = `FDC`.
 - A metadata row whose table is not in the manifest is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a manifest table without a row is not generated (info `TABLE_WITHOUT_METADATA`).
   Errors (missing metadata columns, no tables, unreadable files) write nothing. Examples: `infrastructure/integrations/examples/datasets/`.
