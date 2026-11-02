@@ -10,6 +10,7 @@ public final class TestRunner {
         OutputTests.register();
         AppTests.register();
         com.example.casc.ingest.IngestTests.register();
+        com.example.casc.ingest.DatasetManifestTests.register();
         com.example.casc.net.NetTests.register();
         com.example.casc.ingest.OpenApiTests.register();
         com.example.casc.wizard.WizardTests.register();

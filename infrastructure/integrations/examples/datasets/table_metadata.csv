@@ -1,0 +1,8 @@
+table name, domain, boundary, upstream dataset, producer eonid
+TAPSAccount, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount1, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount2, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount3, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount4, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount5, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+TAPSAccount6, Account (Operations DGC Glossary), Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212

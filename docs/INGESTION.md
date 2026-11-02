@@ -100,3 +100,16 @@ and symbolic links, ignore unknown file types (reported as notes), and read file
 - `POST /api/ingest` with `{"sources":[{"name","text"}],"urls":["https://..."],"options":{...}}` returns the bundle, including findings and `hasErrors`. At least one source or URL is required.
 - `POST /api/draft?format=json|yaml` with the same body plus `"system":{"databaseLogicalName","databaseType","defaultSchema","interfaceDirection"}` returns the draft,
   validation report and unresolved decisions (HTTP 422 if the draft cannot be built).
+
+## Dataset manifests per table (manifest JSON + table metadata CSV)
+`ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]` writes one manifest per table.
+- **Tables** come from the `databases[].schemas[].tables[]` section of the input manifest JSON (columns with their `systemDataElement`).
+  A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently, with a `MANIFEST_LENIENT_READ` warning.
+- **Metadata CSV** columns: `table name, domain, boundary, upstream dataset, producer eonid` (header case and spacing ignored). A domain written
+  `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
+- **One manifest per table that has a metadata row** (`manifest_<table>.json`; the schema is added to the file name only when two schemas share a table name).
+  Each holds one `datasets` entry: `name` = `schema.table`, `format` = `ResultSet`, `boundaries` = `[{product:[boundary]}]`, `dgcDataDomains`,
+  `upstreamDatasets` = `[{name, producerEonId}]`, `datasetElements` (one per column; description = its system data element),
+  `eucOrManualProcess` = `{}`, `originatingCatalogingSource` = `FDC`.
+- A metadata row whose table is not in the manifest is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a manifest table without a row is not generated (info `TABLE_WITHOUT_METADATA`).
+  Errors (missing metadata columns, no tables, unreadable files) write nothing. Examples: `infrastructure/integrations/examples/datasets/`.

@@ -1,0 +1,249 @@
+{
+	"systemDataElements": [
+	{
+		"name": "Material Discrepancy with UK Trust Registry Service Indicator",
+		"description" : "Attribute to capture discepancy raised by CORS during 'Transparency registry check'",
+		"boundaries": [
+		{}
+		],
+		"logicalServices": [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Signer Printeed Name",
+		"description": "Printed name of the signer of the tax form.",
+		"boundaries": [
+		{}
+		],
+		"logicalServices": [
+			"A2)OLTP"
+			]
+	},
+	{
+		"name": "Business Address",
+		"description" : "Japan KYC Legal Ledger Kirokubo attribute to store the client's address where AML letters are sent to",
+		"boundaries": [
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Deferral Requester User ID",
+		"description": "System-captured identifier of the user, short name or login id of the person who initiated the deferral or exception request.",
+		"boundaries":[
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Duplicate Contact Creator User Department",
+		"description": "The Department of the person who has created the duplicate contact",
+		"boundaries" : [
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Account Request Creation Timestamp",
+		"description": "Time when it is created.",
+		"boundaries": [
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Need ID",
+		"description" : "Universally unique identifier for the Need record, represented as an alphanumeric String.",
+		"boundaries": [
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Sales Coverage ID",
+		"description": "ID of Persons responsible for covering the client, based on product.",
+				"boundaries": [
+		{}
+		],
+		"logicalServices" : [
+			"A2_OLTP"
+			]
+	},
+	{
+		"name": "Room Number",
+		"description": "The Room Number",
+		"boundaries": [{
+			"frontToBack": ["Institutional Securities"],
+			"product": ["Exchange Traded Fund", "Corporate And Other Debt"],
+			"other": ["Business Function: Client Reference Data", "Business Function: Transaction Reporting"]
+		}],
+		"piiElements": [
+		{
+			"name": "Country"
+		},
+		{
+			"name": "Street"
+		},
+		{
+			"name": "State"
+		},
+		{
+			"name": "Zip"
+		},
+		{
+			"name": "City"
+		},
+		],
+		"dataSubjectCategories": ["Client"]
+		"associatedDgcElements": {
+			"Operations DGC Glossary" : ["Client Individual Address"]
+		},
+		"logicalServices": ["A2_OLTP"]
+	},
+],
+"interfaces" : [
+{
+	"type": "SOURCED",
+	"name": "Feed from x",
+	"boundaries":[{}]
+},
+{
+	"type": "DISTRIBUTION",
+	"name": "Feed from 3212",
+	"linkedInterface": {
+		"name": "Feed from EON ID 3212",
+		"eonId": 12659
+	},
+	"boundaries": [ {
+	"frontToBack": ["F2B Not Applicable"],
+	"product":["Product Not Applicable"],
+	"process":["Process Not Applicable"],
+	"geography":["Geography Not Applicable"]
+	}
+	]
+	"interfaceDataElements": [
+	{
+		"physicalName": "Party Name",
+		"systemDataElement": "Party Name",
+		"name": "sdfdsf"
+	},
+	{
+		"physicalName": "Party Name1",
+		"systemDataElement": "Party Name1",
+		"name": "sdfdsf1"
+	}
+	]
+},
+
+],
+"logicalServices": [
+{
+	"name": "A2_OLTP",
+	"isDisplayedOnPrem": true
+}
+],
+"databaseColumns": [
+{
+	"name": "a2oltp.TNDInterestVer.tradingNameDefinitionIDFK",
+	"systemDataElement": {"name": "Trading Name Definition Identifier"},
+	"schemaName": "a2oltp",
+	"tableName": "TNDInterestVer",
+	"columnName": "tradingNameDefinitionIDFK",
+	"physicalName": "tradingNameDefinitionIDFK"
+}
+],
+"databases": [
+{
+	"logicalName": "TBD",
+	"schemas": [
+	{
+		"physicalName": "a2oltp",
+		"tables" : [ 
+		{
+			"physicalName": "CanadaReportingJurisdiction",
+			"columns": [
+			{
+				"physicalName": "creationTS",
+				"systemDataElement": "Creation Timestamp"
+			}
+			]
+		},
+		{
+			"physicalName": "TAPSAccount",
+			"columns": [
+			{
+				"physicalName": "opslinkOrderPlacerShortName",
+				"systemDataElement": "Ops Link Order Placer Name"
+			},
+			{
+				"physicalName": "lastStatementDate",
+				"systemDataElement": "Last Statement Date"
+			},
+			{
+				"physicalName": "accountID",
+				"systemDataElement": "Account ID"
+			},
+			{
+				"physicalName": "accountUsage",
+				"systemDataElement": "Account Udage"
+			},
+			{
+				"physicalName": "clientOrFirmAssetsRN",
+				"systemDataElement": "Client or Firm Assets"
+			},
+			{
+				"physicalName": "generalAccountUsageRN",
+				"systemDataElement": "General Account Usage"
+			},
+			{
+				"physicalName": "AccountUUID",
+				"systemDataElement": "Account UUID"
+			},
+			]
+		}
+		]
+	}
+	]
+}
+],
+"datasets" :[
+{
+	"name": "getTAByTA",
+	"description" : "Stored Procedure",
+	"format": "Stored_Procedure",
+	"boundaries": [
+		"frontToBack": ["Institutional Securities"],
+		"product": ["prodyct"],
+		"process": ["process"],
+		"geography":["geography"]
+	],
+	"dgcDataDomains": {
+		"OperationsDG Glossary": [
+		{
+			"domainName": "Account"
+		}]
+	},
+	"eucOrManualProcess": {},
+	"originatingCatalogingSource": "FDC"
+}
+],
+"dgcDataDomains": {
+	"Operations DGC Glossary" : [
+	{
+		"domainName": "Party",
+		"usages": [{}],
+		"boundaries": [{}]
+	}
+	]
+}

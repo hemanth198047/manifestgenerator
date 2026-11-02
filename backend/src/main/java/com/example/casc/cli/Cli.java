@@ -11,6 +11,7 @@ import com.example.casc.app.ExportService;
 import com.example.casc.domain.Enums;
 import com.example.casc.domain.Enums.DatabaseType;
 import com.example.casc.domain.Enums.InterfaceType;
+import com.example.casc.ingest.DatasetManifestIngestion;
 import com.example.casc.ingest.DraftBuilder;
 import com.example.casc.ingest.IngestOptions;
 import com.example.casc.ingest.InputFiles;
@@ -155,7 +156,8 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes"), Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
+                            "--url-max-bytes", "--manifest-input", "--table-metadata", "--dataset-output"),
+                            Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "tools":
                     return tools(out);
                 case "tool":
@@ -191,6 +193,8 @@ public final class Cli {
         p.println("         [--url-allow HOST ...] [--url-allow-http] [--url-timeout S] [--url-max-bytes N]   URL fetching (blocked unless hosts are allowed)");
         p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
         p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
+        p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   write one dataset manifest per table");
+        p.println("         (tables come from the manifest's databases section; domain, boundary, upstream dataset and producer EON ID from the metadata CSV)");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
@@ -337,7 +341,58 @@ public final class Cli {
         }
     }
 
+    private static SourceInput readSource(String file) throws IOException {
+        Path p = Path.of(file);
+        if (!Files.isRegularFile(p)) {
+            throw new IOException("Input file not found or not a regular file: " + p);
+        }
+        if (Files.size(p) > MAX_INPUT_BYTES) {
+            throw new IOException("Input file is larger than " + MAX_INPUT_BYTES + " bytes: " + p);
+        }
+        return SourceInput.fromBytes(p.getFileName().toString(), Files.readAllBytes(p));
+    }
+
+    /** ingest --manifest-input M --table-metadata C --dataset-output DIR: one dataset manifest per table. */
+    private static int ingestDatasets(Opts o, PrintStream out, PrintStream err) throws UsageException {
+        String manifest = o.get("--manifest-input", null);
+        String meta = o.get("--table-metadata", null);
+        String dir = o.get("--dataset-output", null);
+        if (manifest == null || meta == null || dir == null) {
+            throw new UsageException("--manifest-input FILE, --table-metadata FILE and --dataset-output DIR are required together.");
+        }
+        DatasetManifestIngestion.Result r;
+        try {
+            r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta));
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        printReport(new ValidationReport(r.findings()), r.hasErrors() ? err : out);
+        if (r.hasErrors()) {
+            err.println("Nothing was written.");
+            return INVALID;
+        }
+        Path target = Path.of(dir).toAbsolutePath();
+        try {
+            if (!Files.isDirectory(target)) {
+                Files.createDirectories(target);
+            }
+            for (DatasetManifestIngestion.Generated g : r.manifests()) {
+                writeAtomically(target.resolve(g.fileName()), g.content(), o.flags().contains("--overwrite"));
+                out.println("Wrote " + g.fileName() + " (table " + g.table() + ")");
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        out.println("Wrote " + r.manifests().size() + " dataset manifest(s) to " + target);
+        return OK;
+    }
+
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
+        if (o.get("--manifest-input", null) != null || o.get("--table-metadata", null) != null || o.get("--dataset-output", null) != null) {
+            return ingestDatasets(o, out, err);
+        }
         List<String> paths = o.all("--input-files");
         List<String> urls = o.all("--url");
         if (paths.isEmpty() && urls.isEmpty()) {
