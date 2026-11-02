@@ -40,21 +40,26 @@ def adapterVersions = [
 ]
 // Reader adapters register with ServiceLoader through a generated META-INF/services file (see generateAdapterServices).
 def strategyClasses = [
-        poi   : 'com.example.casc.adapters.poi.PoiStrategy',
-        pdfbox: 'com.example.casc.adapters.pdfbox.PdfStrategy',
-        jsoup : 'com.example.casc.adapters.jsoup.HtmlStrategy',
+        poi   : 'com.example.casc.ingest.poi.PoiStrategy',
+        pdfbox: 'com.example.casc.ingest.pdfbox.PdfStrategy',
+        jsoup : 'com.example.casc.ingest.jsoup.HtmlStrategy',
 ]
-def analyzerClasses = [jsqlparser: 'com.example.casc.adapters.jsqlparser.JSqlParserAnalyzer']
+def analyzerClasses = [jsqlparser: 'com.example.casc.ingest.jsqlparser.JSqlParserAnalyzer']
 
 // Layout: backend/ (Java), frontend/ (HTML templates + static assets), infrastructure/ (launchers, samples).
 // frontend/resources is packaged onto the classpath as /templates and /static; no frontend build tool exists.
+// Adapter sources live inside the main tree (com/example/casc/ingest/<adapter>). A disabled adapter's package is excluded from
+// compilation, so the default build still needs none of their libraries.
+def disabledAdapters = knownAdapters - enabledAdapters
 sourceSets {
     main {
-        java.srcDirs = ['backend/src/main/java'] + enabledAdapters.collect { "backend/src/adapters/${it}/java".toString() }
+        java.srcDirs = ['backend/src/main/java']
+        java.exclude disabledAdapters.collect { "com/example/casc/ingest/${it}/**".toString() }
         resources.srcDirs = ['frontend/resources', layout.buildDirectory.dir('generated/services')]
     }
     test {
-        java.srcDirs = ['backend/src/test/java'] + enabledAdapters.collect { "backend/src/adapters/${it}/test/java".toString() }
+        java.srcDirs = ['backend/src/test/java']
+        java.exclude disabledAdapters.collect { "com/example/casc/ingest/${it}/**".toString() }
     }
 }
 

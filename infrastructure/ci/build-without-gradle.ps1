@@ -26,24 +26,29 @@ New-Item -ItemType Directory -Force -Path "$out\main", "$out\test" | Out-Null
 # javac argument files treat backslashes as escapes, so write forward slashes and quote every path.
 function Write-ArgFile($dirs, $target, $exclude) {
     $files = foreach ($d in $dirs) { if (Test-Path $d) { Get-ChildItem -Path $d -Recurse -Filter *.java } }
+    # Adapter sources sit inside the main tree (ingest/<adapter>); disabled adapters are left out of the compile.
+    $files = $files | Where-Object {
+        $path = $_.FullName.Replace('\', '/')
+        -not ($disabledAdapters | Where-Object { $path -like "*/com/example/casc/ingest/$_/*" })
+    }
     $files | Where-Object { -not $exclude -or $_.Name -notmatch $exclude } |
         ForEach-Object { '"' + $_.FullName.Replace('\', '/') + '"' } | Set-Content -Encoding ascii -Path $target
 }
 
+$knownAdapters = @('poi', 'pdfbox', 'jsoup', 'jsqlparser')
+$disabledAdapters = $knownAdapters | Where-Object { ($adapters -split ',') -notcontains $_ }
 $mainDirs = @('backend\src\main')
 $testDirs = @('backend\src\test')
 $strategies = @()
 $analyzers = @()
 foreach ($a in ($adapters -split ',' | Where-Object { $_ })) {
     switch ($a) {
-        'poi'        { $strategies += 'com.example.casc.adapters.poi.PoiStrategy' }
-        'pdfbox'     { $strategies += 'com.example.casc.adapters.pdfbox.PdfStrategy' }
-        'jsoup'      { $strategies += 'com.example.casc.adapters.jsoup.HtmlStrategy' }
-        'jsqlparser' { $analyzers += 'com.example.casc.adapters.jsqlparser.JSqlParserAnalyzer' }
+        'poi'        { $strategies += 'com.example.casc.ingest.poi.PoiStrategy' }
+        'pdfbox'     { $strategies += 'com.example.casc.ingest.pdfbox.PdfStrategy' }
+        'jsoup'      { $strategies += 'com.example.casc.ingest.jsoup.HtmlStrategy' }
+        'jsqlparser' { $analyzers += 'com.example.casc.ingest.jsqlparser.JSqlParserAnalyzer' }
         default      { Write-Host "Unknown adapter '$a'. Known: poi, pdfbox, jsoup, jsqlparser"; exit 2 }
     }
-    $mainDirs += "backend\src\adapters\$a\java"
-    $testDirs += "backend\src\adapters\$a\test\java"
 }
 
 Write-ArgFile $mainDirs "$out\main-files.txt" $null

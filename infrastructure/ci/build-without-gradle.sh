@@ -33,26 +33,33 @@ fi
 rm -rf "$OUT"
 mkdir -p "$OUT/main" "$OUT/test"
 
-MAIN_SOURCES="$(find backend/src/main -name '*.java')"
-TEST_SOURCES="$(find backend/src/test -name '*.java')"
+# Adapter sources sit inside the main tree (ingest/<adapter>); disabled adapters are left out of the compile.
+EXCLUDE_MAIN=""; EXCLUDE_TEST=""
+for a in poi pdfbox jsoup jsqlparser; do
+    case ",$ADAPTERS," in *",$a,"*) ;; *)
+        EXCLUDE_MAIN="$EXCLUDE_MAIN ! -path */com/example/casc/ingest/$a/*"
+        EXCLUDE_TEST="$EXCLUDE_TEST ! -path */com/example/casc/ingest/$a/*" ;;
+    esac
+done
+# shellcheck disable=SC2086
+MAIN_SOURCES="$(find backend/src/main -name '*.java' $EXCLUDE_MAIN)"
+# shellcheck disable=SC2086
+TEST_SOURCES="$(find backend/src/test -name '*.java' $EXCLUDE_TEST)"
 STRATEGIES=""
 ANALYZERS=""
 IFS=',' read -ra LIST <<< "$ADAPTERS"
 for a in "${LIST[@]}"; do
     [ -z "$a" ] && continue
     case "$a" in
-        poi)        STRATEGIES="$STRATEGIES com.example.casc.adapters.poi.PoiStrategy" ;;
-        pdfbox)     STRATEGIES="$STRATEGIES com.example.casc.adapters.pdfbox.PdfStrategy" ;;
-        jsoup)      STRATEGIES="$STRATEGIES com.example.casc.adapters.jsoup.HtmlStrategy" ;;
-        jsqlparser) ANALYZERS="$ANALYZERS com.example.casc.adapters.jsqlparser.JSqlParserAnalyzer" ;;
+        poi)        STRATEGIES="$STRATEGIES com.example.casc.ingest.poi.PoiStrategy" ;;
+        pdfbox)     STRATEGIES="$STRATEGIES com.example.casc.ingest.pdfbox.PdfStrategy" ;;
+        jsoup)      STRATEGIES="$STRATEGIES com.example.casc.ingest.jsoup.HtmlStrategy" ;;
+        jsqlparser) ANALYZERS="$ANALYZERS com.example.casc.ingest.jsqlparser.JSqlParserAnalyzer" ;;
         *) echo "Unknown adapter '$a'. Known: poi, pdfbox, jsoup, jsqlparser" >&2; exit 2 ;;
     esac
-    MAIN_SOURCES="$MAIN_SOURCES
-$(find "backend/src/adapters/$a/java" -name '*.java')"
-    ADAPTER_TESTS="$(find "backend/src/adapters/$a/test/java" -name '*.java')"
-    if [ -n "$SKIP_TEST_FILES" ]; then ADAPTER_TESTS="$(echo "$ADAPTER_TESTS" | grep -Ev "$SKIP_TEST_FILES" || true)"; fi
-    TEST_SOURCES="$TEST_SOURCES
-$ADAPTER_TESTS"
+    if [ -n "$SKIP_TEST_FILES" ]; then
+        TEST_SOURCES="$(echo "$TEST_SOURCES" | grep -Ev "$SKIP_TEST_FILES" || true)"
+    fi
 done
 
 CP_MAIN=()

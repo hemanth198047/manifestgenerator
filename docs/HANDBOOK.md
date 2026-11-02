@@ -24,7 +24,7 @@ Type in this order and stop at each checkpoint:
 3. `web`, `cli`, `Main.java` and the `frontend/` files. Checkpoint C: compile and start the web UI.
 4. Tests last, in the order listed. Checkpoint D: run the test runner.
 5. Optional: `infrastructure/` scripts, integration files and CI.
-6. Optional and last: the four adapters under `backend/src/adapters/` (they are compiled only when enabled, see `docs/ADAPTERS.md`; the default build never needs them). Type one adapter at a time with its tests; `build.gradle` itself is part of step 1 and already contains the adapter switch. Tests that read `infrastructure/` report SKIP when it is absent.
+6. Optional and last: the four adapters under `backend/src/main/java/com/example/casc/ingest/{poi,pdfbox,jsoup,jsqlparser}` (they are compiled only when enabled, see `docs/ADAPTERS.md`; the default build never needs them). Type one adapter at a time with its tests; `build.gradle` itself is part of step 1 and already contains the adapter switch. Tests that read `infrastructure/` report SKIP when it is absent.
 You can run the application after checkpoint C without the tests, and add tests file by file (the runner registers them in `TestRunner.java`; leave a test class out and comment out its `register()` line).
 A small generator script was considered and rejected: the files are not repetitive enough for it to save typing, and a second tool would need its own review.
 
@@ -92,18 +92,18 @@ A small generator script was considered and rejected: the files are not repetiti
 | 59 | `backend/src/main/java/com/example/casc/app/DraftPipeline.java` | 66 | Common |
 | 60 | `backend/src/main/java/com/example/casc/app/ExportResult.java` | 8 | Common |
 | 61 | `backend/src/main/java/com/example/casc/app/ExportService.java` | 91 | Common |
-| 62 | `backend/src/adapters/jsoup/java/com/example/casc/adapters/jsoup/HtmlStrategy.java` | 158 | Common |
-| 63 | `backend/src/adapters/jsqlparser/java/com/example/casc/adapters/jsqlparser/JSqlParserAnalyzer.java` | 95 | Common |
-| 64 | `backend/src/adapters/pdfbox/java/com/example/casc/adapters/pdfbox/PdfStrategy.java` | 107 | Common |
-| 65 | `backend/src/adapters/poi/java/com/example/casc/adapters/poi/DocxExtractor.java` | 86 | Common |
-| 66 | `backend/src/adapters/poi/java/com/example/casc/adapters/poi/DocxModel.java` | 19 | Common |
-| 67 | `backend/src/adapters/poi/java/com/example/casc/adapters/poi/DocxReader.java` | 83 | Common |
-| 68 | `backend/src/adapters/poi/java/com/example/casc/adapters/poi/PoiStrategy.java` | 221 | Common |
-| 69 | `backend/src/adapters/jsoup/test/java/com/example/casc/adapters/jsoup/HtmlTests.java` | 86 | Common |
-| 70 | `backend/src/adapters/jsqlparser/test/java/com/example/casc/adapters/jsqlparser/JSqlParserTests.java` | 66 | Common |
-| 71 | `backend/src/adapters/pdfbox/test/java/com/example/casc/adapters/pdfbox/PdfTests.java` | 100 | Common |
-| 72 | `backend/src/adapters/poi/test/java/com/example/casc/adapters/poi/PoiDocxTests.java` | 46 | Common |
-| 73 | `backend/src/adapters/poi/test/java/com/example/casc/adapters/poi/PoiTests.java` | 236 | Common |
+| 62 | `backend/src/main/java/com/example/casc/ingest/jsoup/HtmlStrategy.java` | 158 | Common |
+| 63 | `backend/src/main/java/com/example/casc/ingest/jsqlparser/JSqlParserAnalyzer.java` | 95 | Common |
+| 64 | `backend/src/main/java/com/example/casc/ingest/pdfbox/PdfStrategy.java` | 107 | Common |
+| 65 | `backend/src/main/java/com/example/casc/ingest/poi/DocxExtractor.java` | 86 | Common |
+| 66 | `backend/src/main/java/com/example/casc/ingest/poi/DocxModel.java` | 19 | Common |
+| 67 | `backend/src/main/java/com/example/casc/ingest/poi/DocxReader.java` | 83 | Common |
+| 68 | `backend/src/main/java/com/example/casc/ingest/poi/PoiStrategy.java` | 221 | Common |
+| 69 | `backend/src/test/java/com/example/casc/ingest/jsoup/HtmlTests.java` | 86 | Common |
+| 70 | `backend/src/test/java/com/example/casc/ingest/jsqlparser/JSqlParserTests.java` | 66 | Common |
+| 71 | `backend/src/test/java/com/example/casc/ingest/pdfbox/PdfTests.java` | 100 | Common |
+| 72 | `backend/src/test/java/com/example/casc/ingest/poi/PoiDocxTests.java` | 46 | Common |
+| 73 | `backend/src/test/java/com/example/casc/ingest/poi/PoiTests.java` | 236 | Common |
 | 74 | `frontend/resources/static/css/app.css` | 37 | Common |
 | 75 | `frontend/resources/static/js/app.js` | 113 | Common |
 | 76 | `frontend/resources/static/samples/sample-dictionary.csv` | 5 | Common |
