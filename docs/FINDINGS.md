@@ -56,6 +56,46 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Remove cloudProvider, or set isDeployedOnPrem to false.
 - **Where to look:** infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md (manifest rules) and the official CasC specification (from your Firmwide Data Catalog team; it is not part of this repository)
 
+## COLUMN_METADATA_COLUMN_MISSING
+
+**Column metadata header incomplete**
+
+- **What it means:** The column metadata file lacks one of the three required columns.
+- **How to fix it:** Use the header `table name, column name, system data element`.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## COLUMN_METADATA_DUPLICATE
+
+**Column listed twice in the column metadata**
+
+- **What it means:** The same table and column appear twice; the first row was used.
+- **How to fix it:** Delete the duplicate row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## COLUMN_METADATA_NOT_FOUND
+
+**Column metadata row matches nothing**
+
+- **What it means:** The table or column in the column metadata file does not exist in the source (manifest or SQL), so that system data element was not used.
+- **How to fix it:** Correct the table or column name (matching ignores case), or delete the row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## COLUMN_METADATA_ROW_SKIPPED
+
+**Column metadata row skipped**
+
+- **What it means:** A row is missing its table name, column name or system data element (or the file is longer than the supported number of rows).
+- **How to fix it:** Fill in all three values or delete the row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## COLUMN_METADATA_UNREADABLE
+
+**Column metadata file unusable**
+
+- **What it means:** The optional column metadata file (system data element per column) could not be read or has no rows.
+- **How to fix it:** Fix the file and run again.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## CSV_BLANK_HEADER
 
 **A column header is blank**

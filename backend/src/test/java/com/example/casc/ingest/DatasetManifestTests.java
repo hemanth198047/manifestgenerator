@@ -133,6 +133,42 @@ public final class DatasetManifestTests {
             eq("a2oltp.Plain", dataset(withDefault.manifests().get(1)).get("name"));
             yes(!has(withDefault, "DATASET_SCHEMA_MISSING"), "default schema applied");
         });
+        test("datasets: external column metadata supplies systemDataElements for SQL tables and overrides a manifest's own", () -> {
+            String meta = "table name,domain,boundary,upstream dataset,producer eonid\nTAPSAccount,Account,Firmwide,a2.dbo.TAPSAccount,3212\n";
+            String cols = "table name,column name,system data element\na2oltp.TAPSAccount,ACCOUNTID,Account ID\nTAPSAccount,AccountUUID,Account UUID\n"
+                    + "TAPSAccount,nope,X\nOther,id,Y\nTAPSAccount,accountid,Duplicate\nTAPSAccount,,Z\n";
+            var sql = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("schema.sql", SQL)), SourceInput.of("t.csv", meta),
+                    IngestOptions.defaults(), null, SourceInput.of("c.csv", cols));
+            yes(!sql.hasErrors(), sql.findings().toString());
+            eq("[{\"name\":\"accountID\",\"description\":\"Account identifier\",\"systemDataElements\":[\"Account ID\"]},"
+                    + "{\"name\":\"AccountUUID\",\"description\":\"Account UUID\",\"systemDataElements\":[\"Account UUID\"]}]",
+                    Json.writeCompact(dataset(sql.manifests().get(0)).get("datasetElements")));
+            yes(has(sql, "COLUMN_METADATA_NOT_FOUND") && has(sql, "COLUMN_METADATA_DUPLICATE") && has(sql, "COLUMN_METADATA_ROW_SKIPPED"), "bad rows are reported");
+            var man = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta),
+                    SourceInput.of("c.csv", "table name,column name,system data element\nTAPSAccount,accountID,Overridden\n"));
+            String first = Json.writeCompact(dataset(man.manifests().get(0)).get("datasetElements"));
+            contains(first, "\"name\":\"accountID\",\"description\":\"Overridden\",\"systemDataElements\":[\"Overridden\"]");
+            contains(first, "\"name\":\"AccountUUID\",\"description\":\"Account UUID\",\"systemDataElements\":[\"Account UUID\"]");
+            var bad = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("schema.sql", SQL)), SourceInput.of("t.csv", meta),
+                    IngestOptions.defaults(), null, SourceInput.of("c.csv", "table name,column name\nTAPSAccount,accountID\n"));
+            yes(has(bad, "COLUMN_METADATA_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs all three columns");
+        });
+        test("datasets: the CLI accepts --column-metadata", () -> {
+            Path dir = tempDir("casc-datasets-cols");
+            try {
+                Files.writeString(dir.resolve("s.sql"), SQL);
+                Files.writeString(dir.resolve("t.csv"), CSV);
+                Files.writeString(dir.resolve("c.csv"), "table name,column name,system data element\nTAPSAccount,accountID,Account ID\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                eq(0, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-metadata", dir.resolve("t.csv").toString(),
+                        "--column-metadata", dir.resolve("c.csv").toString(), "--dataset-output", dir.resolve("out").toString()},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                contains(Files.readString(dir.resolve("out/manifest_TAPSAccount.json")), "\"systemDataElements\"");
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("datasets: the CLI accepts --sql-input, and rejects giving both or neither source", () -> {
             Path dir = tempDir("casc-datasets-sql");
             try {

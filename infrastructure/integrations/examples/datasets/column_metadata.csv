@@ -1,0 +1,4 @@
+table name,column name,system data element
+TAPSAccount,accountID,Account ID
+TAPSAccount,AccountUUID,Account UUID
+TAPSAccount,lastStatementDate,Last Statement Date

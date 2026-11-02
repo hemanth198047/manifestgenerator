@@ -45,6 +45,26 @@ public final class FindingGuide {
           "cloudProvider is set although the service is on premises, which contradicts itself.",
           "Remove cloudProvider, or set isDeployedOnPrem to false.",
           "infrastructure/integrations/copilot/instructions/casc-manifests.instructions.md (manifest rules) and the official CasC specification (from your Firmwide Data Catalog team; it is not part of this repository)");
+        e("COLUMN_METADATA_COLUMN_MISSING", "Column metadata header incomplete",
+          "The column metadata file lacks one of the three required columns.",
+          "Use the header `table name, column name, system data element`.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("COLUMN_METADATA_DUPLICATE", "Column listed twice in the column metadata",
+          "The same table and column appear twice; the first row was used.",
+          "Delete the duplicate row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("COLUMN_METADATA_NOT_FOUND", "Column metadata row matches nothing",
+          "The table or column in the column metadata file does not exist in the source (manifest or SQL), so that system data element was not used.",
+          "Correct the table or column name (matching ignores case), or delete the row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("COLUMN_METADATA_ROW_SKIPPED", "Column metadata row skipped",
+          "A row is missing its table name, column name or system data element (or the file is longer than the supported number of rows).",
+          "Fill in all three values or delete the row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("COLUMN_METADATA_UNREADABLE", "Column metadata file unusable",
+          "The optional column metadata file (system data element per column) could not be read or has no rows.",
+          "Fix the file and run again.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("CSV_BLANK_HEADER", "A column header is blank",
           "A header cell is empty, so the tool named it automatically.",
           "Give the column a name in the source file.",

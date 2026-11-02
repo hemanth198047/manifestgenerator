@@ -157,7 +157,7 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--dataset-output"),
+                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "explain":
                     return explain(args.length > 1 ? args[1] : null, out, err);
@@ -199,6 +199,7 @@ public final class Cli {
         p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   write one dataset manifest per table");
         p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
         p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
+        p.println("         add --column-metadata FILE (table name, column name, system data element) to supply systemDataElements for columns from outside the source");
         p.println("         (tables come from the manifest's databases section; domain, boundary, upstream dataset and producer EON ID from the metadata CSV)");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
@@ -379,8 +380,9 @@ public final class Cli {
         }
         DatasetManifestIngestion.Result r;
         try {
+            SourceInput columns = o.get("--column-metadata", null) == null ? null : readSource(o.get("--column-metadata", null));
             if (manifest != null) {
-                r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta));
+                r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta), columns);
             } else {
                 Map<String, String> m = new LinkedHashMap<>();
                 if (o.get("--dialect", null) != null) {
@@ -396,7 +398,7 @@ public final class Cli {
                 for (String f : sqlFiles) {
                     sql.add(readSource(f));
                 }
-                r = DatasetManifestIngestion.generateFromSql(sql, readSource(meta), options, o.get("--default-schema", null));
+                r = DatasetManifestIngestion.generateFromSql(sql, readSource(meta), options, o.get("--default-schema", null), columns);
             }
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
@@ -426,7 +428,7 @@ public final class Cli {
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
         if (o.get("--manifest-input", null) != null || !o.all("--sql-input").isEmpty() || o.get("--table-metadata", null) != null
-                || o.get("--dataset-output", null) != null) {
+                || o.get("--column-metadata", null) != null || o.get("--dataset-output", null) != null) {
             return ingestDatasets(o, out, err);
         }
         List<String> paths = o.all("--input-files");

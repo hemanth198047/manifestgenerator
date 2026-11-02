@@ -39,10 +39,15 @@ public final class DatasetManifestIngestion {
 
     /** Tables from the databases section of a manifest JSON. */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv) {
+        return generate(manifestJson, metadataCsv, null);
+    }
+
+    /** As above, with optional external column metadata (a system data element per column); columnCsv may be null. */
+    public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv) {
         List<Finding> findings = new ArrayList<>();
         ManifestTables.Result tables = ManifestTables.read(manifestJson);
         findings.addAll(tables.findings());
-        return build(tables.tables(), findings, manifestJson.name(), metadataCsv);
+        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv);
     }
 
     /**
@@ -51,6 +56,12 @@ public final class DatasetManifestIngestion {
      * SQL has no system data elements, so none are written.
      */
     public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema) {
+        return generateFromSql(sql, metadataCsv, options, defaultSchema, null);
+    }
+
+    /** As above, with optional external column metadata (a system data element per column); columnCsv may be null. */
+    public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
+                                         SourceInput columnCsv) {
         List<Finding> findings = new ArrayList<>();
         RawMetadataBundle bundle = SourceIngestionService.standard().ingest(sql, options);
         findings.addAll(bundle.findings());
@@ -81,12 +92,15 @@ public final class DatasetManifestIngestion {
             findings.add(Finding.warning("DATASET_SCHEMA_MISSING", label, noSchema + " table(s) have no schema in the SQL, so their datasets are named with the table name only.",
                     "Qualify the table names in the SQL (schema.table) or pass --default-schema SCHEMA, then run again with --overwrite."));
         }
-        return build(tables, findings, label, metadataCsv);
+        return build(tables, findings, label, metadataCsv, columnCsv);
     }
 
-    private static Result build(List<Table> allTables, List<Finding> findings, String sourceName, SourceInput metadataCsv) {
+    private static Result build(List<Table> sourceTables, List<Finding> findings, String sourceName, SourceInput metadataCsv, SourceInput columnCsv) {
         TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv);
         findings.addAll(meta.findings());
+        ColumnMetadataCsv.Result colMeta = columnCsv == null ? ColumnMetadataCsv.Result.empty() : ColumnMetadataCsv.parse(columnCsv);
+        findings.addAll(colMeta.findings());
+        List<Table> allTables = applyColumnMetadata(sourceTables, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
         if (allTables.isEmpty() || meta.rows().isEmpty() || findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             return new Result(List.of(), findings);
         }
@@ -139,6 +153,50 @@ public final class DatasetManifestIngestion {
                     "Check the table names in both files."));
         }
         return new Result(out, findings);
+    }
+
+    /** Replaces (or supplies) each column's system data element with the externally given one; reports entries that match nothing. */
+    private static List<Table> applyColumnMetadata(List<Table> tables, ColumnMetadataCsv.Result meta, String metaName, String sourceName, List<Finding> findings) {
+        if (meta.entries().isEmpty()) {
+            return tables;
+        }
+        java.util.Set<String> used = new HashSet<>();
+        List<Table> out = new ArrayList<>();
+        for (Table t : tables) {
+            Map<String, ColumnMetadataCsv.Entry> forTable = meta.entries().get(t.name().toLowerCase(Locale.ROOT));
+            if (forTable == null) {
+                out.add(t);
+                continue;
+            }
+            List<Column> cols = new ArrayList<>();
+            for (Column c : t.columns()) {
+                ColumnMetadataCsv.Entry e = forTable.get(c.physicalName().toLowerCase(Locale.ROOT));
+                if (e == null) {
+                    cols.add(c);
+                } else {
+                    used.add(t.name().toLowerCase(Locale.ROOT) + "." + c.physicalName().toLowerCase(Locale.ROOT));
+                    cols.add(new Column(c.physicalName(), e.systemDataElement(), c.description()));
+                }
+            }
+            out.add(new Table(t.database(), t.schema(), t.name(), t.description(), cols));
+        }
+        Set<String> tableNames = new HashSet<>();
+        for (Table t : tables) {
+            tableNames.add(t.name().toLowerCase(Locale.ROOT));
+        }
+        for (Map.Entry<String, Map<String, ColumnMetadataCsv.Entry>> te : meta.entries().entrySet()) {
+            for (Map.Entry<String, ColumnMetadataCsv.Entry> ce : te.getValue().entrySet()) {
+                if (!used.contains(te.getKey() + "." + ce.getKey())) {
+                    ColumnMetadataCsv.Entry e = ce.getValue();
+                    findings.add(Finding.warning("COLUMN_METADATA_NOT_FOUND", metaName + ":line " + e.line(),
+                            tableNames.contains(te.getKey())
+                                    ? "Column '" + e.column() + "' is not a column of table '" + e.table() + "' in " + sourceName + ", so its system data element was not used."
+                                    : "Table '" + e.table() + "' is not defined in " + sourceName + ", so the system data element for column '" + e.column() + "' was not used.",
+                            "Correct the table or column name in the column metadata file (names are matched ignoring case), or delete the row."));
+                }
+            }
+        }
+        return out;
     }
 
     private static List<String> problems(Row r) {

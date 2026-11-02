@@ -16,10 +16,10 @@ description: Creates one dataset manifest per table from a CasC manifest JSON (i
 `run-cli ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--overwrite]`
 
 Or, with the tables read from SQL DDL instead:
-`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--overwrite]`
+`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] [--column-metadata COLUMNS.csv] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--overwrite]`
 
 - Tables can come from a manifest JSON (`--manifest-input`) or from SQL DDL (`--sql-input FILE`, repeatable; optional `--default-schema S` and `--dialect D`). Give one of the two, not both.
-  With SQL: the schema comes from `schema.table` (or `--default-schema`); a column's `description` comes from a SQL comment when there is one; there are no system data elements, so `systemDataElements` is left out; views are skipped.
+  With SQL: the schema comes from `schema.table` (or `--default-schema`); a column's `description` comes from a SQL comment when there is one; there are no system data elements unless `--column-metadata` supplies them (otherwise `systemDataElements` is left out); views are skipped.
 
 
 `--table-metadata` and `--dataset-output` are always required, plus exactly one of `--manifest-input` or `--sql-input`. Add `--overwrite` only when the user wants existing `manifest_<table>.json` files replaced; without it the command refuses to overwrite. Exit codes: 0 ok, 1 validation errors (nothing written), 2 usage error, 3 I/O or parse failure, 4 internal error.
