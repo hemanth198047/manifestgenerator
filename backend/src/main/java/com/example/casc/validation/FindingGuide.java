@@ -69,6 +69,14 @@ public final class FindingGuide {
           "The file breaks CSV rules (unterminated quote, quote inside an unquoted value, text after a closing quote).",
           "Fix the quoting at the reported line or export the file again as standard CSV.",
           "docs/INGESTION.md");
+        e("DATASET_SCHEMA_MISSING", "SQL table without a schema",
+          "A table in the SQL has no schema (it is not written as schema.table) and no default schema was given, so its dataset is named with the table name only.",
+          "Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("DATASET_VIEW_SKIPPED", "SQL views not mapped",
+          "Only tables get a dataset manifest; CREATE VIEW statements were skipped.",
+          "Nothing to do unless a view needs a dataset manifest.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("DB_NAME_PROVISIONAL", "Database name contains a space",
           "The naming rules for TAI logical database names are not confirmed; names with whitespace may be rejected later.",
           "Check the name against the official CasC specification (from your Firmwide Data Catalog team; it is not part of this repository) and remove the whitespace if the rules forbid it.",

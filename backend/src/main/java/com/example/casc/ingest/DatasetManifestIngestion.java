@@ -37,17 +37,61 @@ public final class DatasetManifestIngestion {
         }
     }
 
+    /** Tables from the databases section of a manifest JSON. */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv) {
         List<Finding> findings = new ArrayList<>();
         ManifestTables.Result tables = ManifestTables.read(manifestJson);
-        TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv);
         findings.addAll(tables.findings());
+        return build(tables.tables(), findings, manifestJson.name(), metadataCsv);
+    }
+
+    /**
+     * Tables from SQL DDL (CREATE TABLE statements, read by the normal SQL reader). defaultSchema (may be null) is used for tables
+     * that have no schema in the SQL. Views are not mapped. A column's description comes from the SQL comment, if any;
+     * SQL has no system data elements, so none are written.
+     */
+    public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema) {
+        List<Finding> findings = new ArrayList<>();
+        RawMetadataBundle bundle = SourceIngestionService.standard().ingest(sql, options);
+        findings.addAll(bundle.findings());
+        List<Table> tables = new ArrayList<>();
+        int views = 0;
+        int noSchema = 0;
+        for (RawMetadataBundle.RawTable t : bundle.tables()) {
+            if ("VIEW".equals(t.kind())) {
+                views++;
+                continue;
+            }
+            String schema = t.schema() != null ? t.schema() : defaultSchema;
+            if (schema == null) {
+                noSchema++;
+            }
+            List<Column> cols = new ArrayList<>();
+            for (RawMetadataBundle.RawColumn c : t.columns()) {
+                cols.add(new Column(c.name(), null, c.description() == null || c.description().isBlank() ? null : c.description()));
+            }
+            tables.add(new Table(t.database(), schema, t.name(), t.description() == null || t.description().isBlank() ? null : t.description(), cols));
+        }
+        String label = sql.size() == 1 ? sql.get(0).name() : sql.size() + " SQL files";
+        if (views > 0) {
+            findings.add(Finding.info("DATASET_VIEW_SKIPPED", label, views + " view(s) in the SQL were not mapped; only tables get a dataset manifest.",
+                    "Nothing to do unless a view needs a dataset manifest; then it must be described as a table."));
+        }
+        if (noSchema > 0) {
+            findings.add(Finding.warning("DATASET_SCHEMA_MISSING", label, noSchema + " table(s) have no schema in the SQL, so their datasets are named with the table name only.",
+                    "Qualify the table names in the SQL (schema.table) or pass --default-schema SCHEMA, then run again with --overwrite."));
+        }
+        return build(tables, findings, label, metadataCsv);
+    }
+
+    private static Result build(List<Table> allTables, List<Finding> findings, String sourceName, SourceInput metadataCsv) {
+        TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv);
         findings.addAll(meta.findings());
-        if (tables.tables().isEmpty() || meta.rows().isEmpty() || findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
+        if (allTables.isEmpty() || meta.rows().isEmpty() || findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             return new Result(List.of(), findings);
         }
         Map<String, List<Table>> byName = new HashMap<>();
-        for (Table t : tables.tables()) {
+        for (Table t : allTables) {
             byName.computeIfAbsent(t.name().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(t);
         }
         List<Generated> out = new ArrayList<>();
@@ -63,8 +107,8 @@ public final class DatasetManifestIngestion {
             List<Table> matches = byName.get(key);
             if (matches == null) {
                 findings.add(Finding.warning("METADATA_TABLE_NOT_IN_MANIFEST", metadataCsv.name() + ":line " + row.line(),
-                        "Table '" + row.table() + "' is not defined in " + manifestJson.name() + ", so no manifest was generated for it.",
-                        "Correct the table name in the CSV (names are matched ignoring case), or add the table to the manifest, or delete the row. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
+                        "Table '" + row.table() + "' is not defined in " + sourceName + ", so no manifest was generated for it.",
+                        "Correct the table name in the CSV (names are matched ignoring case), or add the table to " + sourceName + ", or delete the row. If " + sourceName + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
                 continue;
             }
             for (String problem : problems(row)) {
@@ -81,13 +125,13 @@ public final class DatasetManifestIngestion {
             described.add(r.table().toLowerCase(Locale.ROOT));
         }
         int skipped = 0;
-        for (Table t : tables.tables()) {
+        for (Table t : allTables) {
             if (!described.contains(t.name().toLowerCase(Locale.ROOT))) {
                 skipped++;
             }
         }
         if (skipped > 0) {
-            findings.add(Finding.info("TABLE_WITHOUT_METADATA", manifestJson.name(), skipped + " table(s) in the manifest have no row in "
+            findings.add(Finding.info("TABLE_WITHOUT_METADATA", sourceName, skipped + " table(s) in " + sourceName + " have no row in "
                     + metadataCsv.name() + " and were not generated.", "If those tables need a dataset manifest, add a row for each to the metadata CSV and run again with --overwrite. Otherwise nothing to do."));
         }
         if (out.isEmpty()) {
@@ -154,8 +198,11 @@ public final class DatasetManifestIngestion {
         for (Column c : t.columns()) {
             Map<String, Object> e = new LinkedHashMap<>();
             e.put("name", c.physicalName());
+            String desc = c.description() != null ? c.description() : c.systemDataElement();
+            if (desc != null) {
+                e.put("description", desc);
+            }
             if (c.systemDataElement() != null) {
-                e.put("description", c.systemDataElement());
                 e.put("systemDataElements", List.of(c.systemDataElement()));
             }
             els.add(e);

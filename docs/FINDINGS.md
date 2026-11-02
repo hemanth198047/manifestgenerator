@@ -104,6 +104,22 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Fix the quoting at the reported line or export the file again as standard CSV.
 - **Where to look:** docs/INGESTION.md
 
+## DATASET_SCHEMA_MISSING
+
+**SQL table without a schema**
+
+- **What it means:** A table in the SQL has no schema (it is not written as schema.table) and no default schema was given, so its dataset is named with the table name only.
+- **How to fix it:** Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## DATASET_VIEW_SKIPPED
+
+**SQL views not mapped**
+
+- **What it means:** Only tables get a dataset manifest; CREATE VIEW statements were skipped.
+- **How to fix it:** Nothing to do unless a view needs a dataset manifest.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## DB_NAME_PROVISIONAL
 
 **Database name contains a space**

@@ -103,6 +103,9 @@ and symbolic links, ignore unknown file types (reported as notes), and read file
 
 ## Dataset manifests per table (manifest JSON + table metadata CSV)
 `ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]` writes one manifest per table.
+The tables can also come from SQL DDL instead of a manifest JSON: `ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]`
+(use `--manifest-input` or `--sql-input`, not both). With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
+a column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one; SQL has no system data elements, so `systemDataElements` is left out; views are skipped (`DATASET_VIEW_SKIPPED`).
 - **Tables** come from the `databases[].schemas[].tables[]` section of the input manifest JSON (columns with their `systemDataElement`).
   A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently, with a `MANIFEST_LENIENT_READ` warning.
 - **Metadata CSV** columns: `table name, domain, boundary, upstream dataset, producer eonid` (header case and spacing ignored). A domain written

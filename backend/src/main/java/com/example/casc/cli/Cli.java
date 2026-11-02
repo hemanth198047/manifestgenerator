@@ -157,7 +157,7 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes", "--manifest-input", "--table-metadata", "--dataset-output"),
+                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--dataset-output"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http")), out, err);
                 case "explain":
                     return explain(args.length > 1 ? args[1] : null, out, err);
@@ -197,6 +197,8 @@ public final class Cli {
         p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
         p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
         p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   write one dataset manifest per table");
+        p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
+        p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
         p.println("         (tables come from the manifest's databases section; domain, boundary, upstream dataset and producer EON ID from the metadata CSV)");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
@@ -366,14 +368,36 @@ public final class Cli {
     /** ingest --manifest-input M --table-metadata C --dataset-output DIR: one dataset manifest per table. */
     private static int ingestDatasets(Opts o, PrintStream out, PrintStream err) throws UsageException {
         String manifest = o.get("--manifest-input", null);
+        List<String> sqlFiles = o.all("--sql-input");
         String meta = o.get("--table-metadata", null);
         String dir = o.get("--dataset-output", null);
-        if (manifest == null || meta == null || dir == null) {
-            throw new UsageException("--manifest-input FILE, --table-metadata FILE and --dataset-output DIR are required together.");
+        if ((manifest == null) == sqlFiles.isEmpty()) {
+            throw new UsageException("Give the tables either as --manifest-input FILE (a manifest JSON) or as --sql-input FILE (SQL DDL, repeatable), not both and not neither.");
+        }
+        if (meta == null || dir == null) {
+            throw new UsageException("--table-metadata FILE and --dataset-output DIR are required with --manifest-input or --sql-input.");
         }
         DatasetManifestIngestion.Result r;
         try {
-            r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta));
+            if (manifest != null) {
+                r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta));
+            } else {
+                Map<String, String> m = new LinkedHashMap<>();
+                if (o.get("--dialect", null) != null) {
+                    m.put("dialect", o.get("--dialect", null));
+                }
+                IngestOptions options;
+                try {
+                    options = IngestOptions.fromMap(m);
+                } catch (IllegalArgumentException e) {
+                    throw new UsageException(e.getMessage());
+                }
+                List<SourceInput> sql = new ArrayList<>();
+                for (String f : sqlFiles) {
+                    sql.add(readSource(f));
+                }
+                r = DatasetManifestIngestion.generateFromSql(sql, readSource(meta), options, o.get("--default-schema", null));
+            }
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
             return IO;
@@ -401,7 +425,8 @@ public final class Cli {
     }
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
-        if (o.get("--manifest-input", null) != null || o.get("--table-metadata", null) != null || o.get("--dataset-output", null) != null) {
+        if (o.get("--manifest-input", null) != null || !o.all("--sql-input").isEmpty() || o.get("--table-metadata", null) != null
+                || o.get("--dataset-output", null) != null) {
             return ingestDatasets(o, out, err);
         }
         List<String> paths = o.all("--input-files");

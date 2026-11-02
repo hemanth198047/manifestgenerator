@@ -16,7 +16,8 @@ import java.util.Map;
 public final class ManifestTables {
     private ManifestTables() {}
 
-    public record Column(String physicalName, String systemDataElement) {}
+    /** description is null when the source has none (manifest JSON columns carry a system data element instead). */
+    public record Column(String physicalName, String systemDataElement, String description) {}
 
     public record Table(String database, String schema, String name, String description, List<Column> columns) {}
 
@@ -75,7 +76,7 @@ public final class ManifestTables {
                     List<Column> cols = new ArrayList<>();
                     for (Object c : list(tb.get("columns"))) {
                         if (c instanceof Map<?, ?> cm && text(cm.get("physicalName")) != null) {
-                            cols.add(new Column(text(cm.get("physicalName")), element(cm.get("systemDataElement"))));
+                            cols.add(new Column(text(cm.get("physicalName")), element(cm.get("systemDataElement")), null));
                         }
                     }
                     out.add(new Table(dbName, schema, text(tb.get("physicalName")), text(tb.get("description")), cols));

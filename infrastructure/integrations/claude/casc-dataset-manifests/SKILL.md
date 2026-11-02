@@ -1,6 +1,6 @@
 ---
 name: casc-dataset-manifests
-description: Creates one dataset manifest per table from a CasC manifest JSON (its databases section) and a table metadata CSV (table name, domain, boundary, upstream dataset, producer eonid) by running the local casc-generator command line tool. Use when the user gives a manifest JSON plus a table metadata CSV and wants a separate dataset manifest (datasets with upstreamDatasets, datasetElements and systemDataElements) for each table. Does not contact any external service.
+description: Creates one dataset manifest per table from a CasC manifest JSON (its databases section) or SQL DDL files, and a table metadata CSV (table name, domain, boundary, upstream dataset, producer eonid) by running the local casc-generator command line tool. Use when the user gives a manifest JSON plus a table metadata CSV and wants a separate dataset manifest (datasets with upstreamDatasets, datasetElements and systemDataElements) for each table. Does not contact any external service.
 ---
 
 # CasC dataset manifests
@@ -11,18 +11,23 @@ it uses the documented `ingest` command with the dataset options. If the command
 ## Before you start
 - Needs JDK 21 and the built jar `build/libs/casc-generator.jar` (see the project README). Use the launcher from the repository root:
   Linux `infrastructure/launchers/run-cli.sh`, Windows `infrastructure\launchers\run-cli.bat`.
-- You need two files from the user: the manifest JSON (tables are read from `databases[].schemas[].tables[]`) and the table metadata CSV
+- You need two things from the user: the tables (a manifest JSON, read from `databases[].schemas[].tables[]`, or SQL DDL files) and the table metadata CSV
   with the header `table name, domain, boundary, upstream dataset, producer eonid`.
 - Use only the files the user gave you. Do not read other files.
 
 ## Command
 `run-cli ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR`
 
+Or, with the tables read from SQL DDL instead:
+`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR`
+
+- Give exactly one of `--manifest-input` or `--sql-input`. With SQL the schema comes from `schema.table` (or `--default-schema`), a column's `description` comes from a SQL comment when there is one, there are no system data elements (so `systemDataElements` is left out), and views are skipped.
+
 Add `--overwrite` only when the user wants existing `manifest_<table>.json` files in OUT_DIR replaced; without it the command refuses to overwrite.
-All three options are required together. Exit codes: 0 written, 1 errors (nothing written), 2 usage error, 3 I/O error, 4 internal error.
+`--table-metadata` and `--dataset-output` are always required, plus exactly one of `--manifest-input` or `--sql-input`. Exit codes: 0 written, 1 errors (nothing written), 2 usage error, 3 I/O error, 4 internal error.
 
 ## Workflow
-1. Confirm the manifest file, the metadata CSV and the output directory with the user.
+1. Confirm the manifest file or SQL files, the metadata CSV and the output directory with the user.
 2. Run the command and show the user everything it printed, including every warning. Do not hide them.
 3. Explain the outcome: one `manifest_<table>.json` per table that has a metadata row. A metadata row whose table is not in the manifest is a warning
    (`METADATA_TABLE_NOT_IN_MANIFEST`) and produces no file; a manifest table without a metadata row is skipped (`TABLE_WITHOUT_METADATA`).
