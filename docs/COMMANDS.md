@@ -84,6 +84,7 @@ Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest
 | `--combine-count N` / `--combine-tables A,B,...` | Combine only the first N datasets / only the named tables (not both) |
 | `--combined-only` | With `--combine-output`: skip the per-table files |
 | `--default-schema S` | Schema for SQL tables that have none |
+| `--database-name NAME` | The database part of every dataset name (`database.schema.table`). Default: the manifest's `logicalName`, or the database written in the SQL (`db.schema.table`). Without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported |
 | `--overwrite` | Replace existing files |
 
 The run ends with a summary (tables read, metadata rows, manifests generated). Details: `docs/INGESTION.md`.
@@ -92,7 +93,7 @@ The run ends with a summary (tables read, metadata rows, manifests generated). D
 `casc-generator combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`
 
 Merges the `datasets` of several dataset manifests into one `{"datasets": [...]}` file. A folder contributes its `.json` files in name order. All datasets by default; `--count N` takes the first N,
-`--tables` takes the named tables (table name or `schema.table`, case ignored); not both. A dataset name already present is not added twice.
+`--tables` takes the named tables (table name, `schema.table` or `database.schema.table`, case ignored); not both. A dataset name already present is not added twice.
 
 ## json
 `casc-generator json OPERATION --input FILE [options]` (`json` alone lists the operations).

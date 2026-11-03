@@ -40,7 +40,7 @@ or, with the tables read from SQL:
    - `MANIFEST_LENIENT_READ`: the manifest had JSON syntax errors (for example trailing commas) and only its `databases` section was read.
    - `COLUMN_METADATA_NOT_FOUND`: a row of the column metadata CSV matches no table or column; it was not used.
 4. If the command reports errors, say what each one means and how to fix the input; run again after the user fixes it (with `--overwrite` if files were already written). Never edit the user's inputs yourself.
-5. Each generated file holds one `datasets` entry: `name` (`schema.table`), `format` ResultSet, `boundaries`, `dgcDataDomains`, `upstreamDatasets` (name and `producerEonId`; absent with `--no-upstream`),
+5. Each generated file holds one `datasets` entry: `name` (`database.schema.table`), `format` ResultSet, `boundaries`, `dgcDataDomains`, `upstreamDatasets` (name and `producerEonId`; absent with `--no-upstream`),
    `datasetElements` (`name`, `description`, and `systemDataElements` when a system data element is known for the column), `eucOrManualProcess`, `originatingCatalogingSource`.
 
 ## Combining into one manifest

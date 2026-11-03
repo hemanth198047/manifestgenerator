@@ -200,6 +200,14 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Fix the quoting at the reported line or export the file again as standard CSV.
 - **Where to look:** docs/INGESTION.md
 
+## DATASET_DATABASE_MISSING
+
+**Dataset names without a database**
+
+- **What it means:** Dataset names are database.schema.table. Some tables have no database (a manifest database without a logicalName, or SQL tables not written as database.schema.table), so their names are schema.table only.
+- **How to fix it:** Pass --database-name NAME, or give the database in the source, then run again with --overwrite.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## DATASET_SCHEMA_MISSING
 
 **SQL table without a schema**

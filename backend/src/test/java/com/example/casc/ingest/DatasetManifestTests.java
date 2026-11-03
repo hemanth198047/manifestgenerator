@@ -79,7 +79,7 @@ public final class DatasetManifestTests {
             var g = r.manifests().get(0);
             eq("manifest_TAPSAccount.json", g.fileName());
             Map<String, Object> d = dataset(g);
-            eq("a2oltp.TAPSAccount", d.get("name"));
+            eq("TBD.a2oltp.TAPSAccount", d.get("name"));
             eq("ResultSet", d.get("format"));
             eq("FDC", d.get("originatingCatalogingSource"));
             eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(d.get("dgcDataDomains")));
@@ -257,6 +257,31 @@ public final class DatasetManifestTests {
                         "--dataset-output", one.toString(), "--combine-count", "1"}, InputStream.nullInputStream(), po, po, k -> null));
             } finally {
                 deleteTree(dir);
+            }
+        });
+        test("datasets: the dataset name is database.schema.table; --database-name sets or replaces the database", () -> {
+            String meta = "table name,domain,boundary\nTAPSAccount,Account,Firmwide\n";
+            // manifest: the database is the logicalName
+            var m = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, null);
+            eq("TBD.a2oltp.TAPSAccount", dataset(m.manifests().get(0)).get("name"));
+            yes(!has(m, "DATASET_DATABASE_MISSING"), "database known");
+            var over = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, "TRADE_DB");
+            eq("TRADE_DB.a2oltp.TAPSAccount", dataset(over.manifests().get(0)).get("name"));
+            // manifest without a logicalName: no database, with a warning
+            String noDb = STRICT.replace("\"logicalName\":\"TBD\",", "");
+            var none = DatasetManifestIngestion.generate(SourceInput.of("m.json", noDb), SourceInput.of("t.csv", meta), null, false, null);
+            eq("a2oltp.TAPSAccount", dataset(none.manifests().get(0)).get("name"));
+            yes(has(none, "DATASET_DATABASE_MISSING"), "warns when the database is unknown");
+            // SQL: a three-part name carries its database; --database-name fills or replaces it
+            String sql = "CREATE TABLE mydb.a2oltp.TAPSAccount (accountID INT);";
+            var s3 = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", sql)), SourceInput.of("t.csv", meta), IngestOptions.defaults(), null, null, false, null);
+            eq("mydb.a2oltp.TAPSAccount", dataset(s3.manifests().get(0)).get("name"));
+            var s2 = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", SQL)), SourceInput.of("t.csv", meta), IngestOptions.defaults(), null, null, false, "TRADE_DB");
+            eq("TRADE_DB.a2oltp.TAPSAccount", dataset(s2.manifests().get(0)).get("name"));
+            // combine --tables still finds a table by table name, schema.table or database.schema.table
+            for (String w : List.of("TAPSAccount", "a2oltp.TAPSAccount", "TRADE_DB.a2oltp.TAPSAccount")) {
+                var c = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", s2.manifests().get(0).content())), new DatasetManifestCombiner.Selection(null, List.of(w)));
+                eq(1, c.datasets());
             }
         });
         test("datasets: the CLI accepts --no-upstream", () -> {

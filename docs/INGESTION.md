@@ -104,7 +104,8 @@ and symbolic links, ignore unknown file types (reported as notes), and read file
 ## Dataset manifests per table (manifest JSON + table metadata CSV)
 `ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]` writes one manifest per table.
 The tables can also come from SQL DDL instead of a manifest JSON: `ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]`
-(use `--manifest-input` or `--sql-input`, not both). With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
+(use `--manifest-input` or `--sql-input`, not both). The dataset name is `database.schema.table`: the database is the manifest's `logicalName` or the database written in the SQL, and `--database-name DB` sets or replaces it (without any, `DATASET_DATABASE_MISSING` is reported and the name is `schema.table`).
+With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
 a column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one; SQL has no system data elements, so `systemDataElements` is left out; views are skipped (`DATASET_VIEW_SKIPPED`).
 
 **Tables without upstreams.** Add `--no-upstream` to either route: no `upstreamDatasets` is written, and the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional
@@ -119,7 +120,7 @@ Rows that match no table or column are reported (`COLUMN_METADATA_NOT_FOUND`); d
 - **Metadata CSV** columns: `table name, domain, boundary, upstream dataset, producer eonid` (header case and spacing ignored). A domain written
   `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
 - **One manifest per table that has a metadata row** (`manifest_<table>.json`; the schema is added to the file name only when two schemas share a table name).
-  Each holds one `datasets` entry: `name` = `schema.table`, `format` = `ResultSet`, `boundaries` = `[{product:[boundary]}]`, `dgcDataDomains`,
+  Each holds one `datasets` entry: `name` = `database.schema.table`, `format` = `ResultSet`, `boundaries` = `[{product:[boundary]}]`, `dgcDataDomains`,
   `upstreamDatasets` = `[{name, producerEonId}]`, `datasetElements` (one per column: `name`, `description` and `systemDataElements: [<the column's systemDataElement>]`; both are left out when the column has no system data element),
   `eucOrManualProcess` = `{}`, `originatingCatalogingSource` = `FDC`.
 - A metadata row whose table is not in the manifest is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a manifest table without a row is not generated (info `TABLE_WITHOUT_METADATA`).
@@ -129,6 +130,6 @@ Rows that match no table or column are reported (`COLUMN_METADATA_NOT_FOUND`); d
 Merge the `datasets` of several dataset manifests into one manifest (`{"datasets": [ ... ]}`), either afterwards or while generating.
 - **Afterwards:** `combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`. A directory contributes its `.json` files (sorted by name; the output file itself is skipped).
 - **While generating:** add `--combine-output FILE` to `ingest --manifest-input/--sql-input ...`; add `--combined-only` to skip the per-table files. `--combine-count` and `--combine-tables` work as below.
-- **Which datasets:** all by default. `--count N` (`--combine-count N` with ingest) takes the first N datasets in input order. `--tables A,B` (`--combine-tables`) takes only the named tables (table name or `schema.table`, case ignored). Use one of the two, not both.
+- **Which datasets:** all by default. `--count N` (`--combine-count N` with ingest) takes the first N datasets in input order. `--tables A,B` (`--combine-tables`) takes only the named tables (table name, `schema.table` or `database.schema.table`, case ignored). Use one of the two, not both.
 - A dataset name that is already in the result is not added twice (`COMBINE_DUPLICATE_DATASET`); files without `datasets` are skipped (`COMBINE_FILE_SKIPPED`); other top-level fields are not carried over (`COMBINE_FIELD_DROPPED`); the last info line (`COMBINE_SUMMARY`) says how many were read and combined.
 - The command refuses to replace an existing output file unless `--overwrite` is given. Nothing is written when there is an error.

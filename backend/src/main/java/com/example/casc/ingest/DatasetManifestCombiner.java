@@ -96,10 +96,15 @@ public final class DatasetManifestCombiner {
             Set<String> hit = new HashSet<>();
             for (Map<String, Object> d : found) {
                 String n = String.valueOf(d.get("name")).toLowerCase(Locale.ROOT);
-                String table = n.substring(n.lastIndexOf('.') + 1);
-                if (wanted.contains(n) || wanted.contains(table)) {
+                boolean chosenHere = false;
+                for (String w : wanted) {
+                    if (n.equals(w) || n.endsWith("." + w)) {        // table, schema.table or database.schema.table
+                        hit.add(w);
+                        chosenHere = true;
+                    }
+                }
+                if (chosenHere) {
                     chosen.add(d);
-                    hit.add(wanted.contains(n) ? n : table);
                 }
             }
             for (String t : selection.tables()) {
