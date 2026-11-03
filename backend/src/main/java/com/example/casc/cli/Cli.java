@@ -163,7 +163,7 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output", "--database-name",
+                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output", "--database-name", "--table-list", "--domain", "--boundary",
                             "--combine-output", "--combine-count", "--combine-tables"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http", "--no-upstream", "--combined-only")), out, err);
                 case "json":
@@ -220,6 +220,8 @@ public final class Cli {
         p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
         p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
         p.println("         [--column-metadata FILE]  system data elements per column (table name, column name, system data element)");
+        p.println("         [--table-list FILE [--domain TEXT] [--boundary TEXT]]  generate only for the tables in FILE (table name column, one-column CSV or one table per line);");
+        p.println("         --table-metadata then becomes optional: --domain and --boundary give the defaults for tables without a metadata row");
         p.println("         [--no-upstream]  no upstreamDatasets; the metadata needs only table name, domain, boundary");
         p.println("         [--database-name NAME]  the database part of every dataset name (database.schema.table); default: the manifest's logicalName or the database in the SQL");
         p.println("         [--combine-output FILE [--combine-count N | --combine-tables A,B,...] [--combined-only]]  also write one combined manifest");
@@ -401,8 +403,12 @@ public final class Cli {
         if ((manifest == null) == sqlFiles.isEmpty()) {
             throw new UsageException("Give the tables either as --manifest-input FILE (a manifest JSON) or as --sql-input FILE (SQL DDL, repeatable), not both and not neither.");
         }
-        if (meta == null || dir == null) {
-            throw new UsageException("--table-metadata FILE and --dataset-output DIR are required with --manifest-input or --sql-input.");
+        String listFile = o.get("--table-list", null);
+        if ((meta == null && listFile == null) || dir == null) {
+            throw new UsageException("--dataset-output DIR and --table-metadata FILE and/or --table-list FILE are required with --manifest-input or --sql-input.");
+        }
+        if (listFile == null && (o.get("--domain", null) != null || o.get("--boundary", null) != null)) {
+            throw new UsageException("--domain and --boundary give defaults for the tables of a --table-list; add --table-list FILE.");
         }
         String combineOut = o.get("--combine-output", null);
         if (combineOut == null && (o.get("--combine-count", null) != null || o.get("--combine-tables", null) != null || o.flags().contains("--combined-only"))) {
@@ -411,9 +417,12 @@ public final class Cli {
         DatasetManifestCombiner.Selection selection = selection(o);
         DatasetManifestIngestion.Result r;
         try {
+            SourceInput metaInput = meta == null ? null : readSource(meta);
+            DatasetManifestIngestion.TableSelection tableSelection = listFile == null ? null
+                    : new DatasetManifestIngestion.TableSelection(readSource(listFile), o.get("--domain", null), o.get("--boundary", null));
             SourceInput columns = o.get("--column-metadata", null) == null ? null : readSource(o.get("--column-metadata", null));
             if (manifest != null) {
-                r = DatasetManifestIngestion.generate(readSource(manifest), readSource(meta), columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null));
+                r = DatasetManifestIngestion.generate(readSource(manifest), metaInput, columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), tableSelection);
             } else {
                 Map<String, String> m = new LinkedHashMap<>();
                 if (o.get("--dialect", null) != null) {
@@ -429,7 +438,7 @@ public final class Cli {
                 for (String f : sqlFiles) {
                     sql.add(readSource(f));
                 }
-                r = DatasetManifestIngestion.generateFromSql(sql, readSource(meta), options, o.get("--default-schema", null), columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null));
+                r = DatasetManifestIngestion.generateFromSql(sql, metaInput, options, o.get("--default-schema", null), columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), tableSelection);
             }
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
@@ -947,7 +956,7 @@ public final class Cli {
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
         if (o.get("--manifest-input", null) != null || !o.all("--sql-input").isEmpty() || o.get("--table-metadata", null) != null
-                || o.get("--column-metadata", null) != null || o.get("--database-name", null) != null || o.get("--dataset-output", null) != null) {
+                || o.get("--column-metadata", null) != null || o.get("--table-list", null) != null || o.get("--database-name", null) != null || o.get("--dataset-output", null) != null) {
             return ingestDatasets(o, out, err);
         }
         List<String> paths = o.all("--input-files");

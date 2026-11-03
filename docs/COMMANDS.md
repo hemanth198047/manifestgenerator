@@ -74,11 +74,13 @@ casc-generator ingest --manifest-input MANIFEST.json --table-metadata TABLE_META
 casc-generator ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema S] [--dialect D] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [options]
 ```
 Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest with trailing or missing commas is still read) **or** as SQL DDL, not both.
-`TABLE_METADATA.csv` has the header `table name, domain, boundary, upstream dataset, producer eonid`; one `manifest_<table>.json` is written for every table that has a row.
+`TABLE_METADATA.csv` has the header `table name, domain, boundary, upstream dataset, producer eonid`; one `manifest_<table>.json` is written for every table that has a row. With `--table-list`, the list decides which tables are generated (see below) and `--table-metadata` is optional.
 
 | Option | Meaning |
 |--------|---------|
 | `--column-metadata FILE` | CSV `table name, column name, system data element`: supplies `systemDataElements` per column (fills what SQL cannot, replaces a manifest's own value) |
+| `--table-list FILE` | Generate only for the tables in FILE (a `table name` column, a one-column CSV, or a `.txt` with one table per line; `table`, `schema.table` or `database.schema.table`). `--table-metadata` then becomes optional |
+| `--domain TEXT`, `--boundary TEXT` | With `--table-list`: the domain (`Account (Operations DGC Glossary)`) and boundary for listed tables that have no row in `--table-metadata` |
 | `--no-upstream` | Write no `upstreamDatasets`; the CSV then needs only `table name, domain, boundary` |
 | `--combine-output FILE` | Also write one combined manifest |
 | `--combine-count N` / `--combine-tables A,B,...` | Combine only the first N datasets / only the named tables (not both) |

@@ -14,27 +14,29 @@ This skill runs the locally built `casc-generator` command line tool. It is not 
 
 ## What to ask the user
 1. **Where do the tables come from?** A CasC manifest JSON (tables are read from `databases[].schemas[].tables[].physicalName`), or SQL DDL files (`CREATE TABLE` statements).
-2. **The table metadata CSV.** Header `table name, domain, boundary, upstream dataset, producer eonid`; one row per table that needs a dataset manifest. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary.
+2. **Which tables, and their metadata.** Either a table metadata CSV, or a **table list** (`--table-list TABLES.csv`, see below) with a default domain and boundary, or both. **The table metadata CSV:** Header `table name, domain, boundary, upstream dataset, producer eonid`; one row per table that needs a dataset manifest. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary.
 3. **Do the tables have upstream datasets?** If not, use `--no-upstream`: no `upstreamDatasets` is written and the CSV needs only `table name, domain, boundary`.
 4. **Are the system data elements known?** A manifest JSON carries a `systemDataElement` per column. SQL does not, so offer an external column metadata CSV with the header `table name, column name, system data element` (`--column-metadata`). It also replaces a manifest's own value for the columns it lists.
 5. Whether they also want everything (or only some datasets) combined into one manifest.
 6. The output directory, and whether files already there may be replaced (`--overwrite`; without it the command refuses to overwrite).
 
 ## Command
-`run-cli ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--column-metadata COLUMNS.csv] [--no-upstream] [--overwrite]`
+`run-cli ingest --manifest-input MANIFEST.json [--table-metadata TABLE_METADATA.csv] --dataset-output OUT_DIR [--table-list TABLES.csv [--domain TEXT] [--boundary TEXT]] [--column-metadata COLUMNS.csv] [--no-upstream] [--database-name DB] [--overwrite]`
 
 or, with the tables read from SQL:
 
-`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--column-metadata COLUMNS.csv] [--no-upstream] [--overwrite]`
+`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] [--table-metadata TABLE_METADATA.csv] --dataset-output OUT_DIR [--table-list TABLES.csv [--domain TEXT] [--boundary TEXT]] [--column-metadata COLUMNS.csv] [--no-upstream] [--database-name DB] [--overwrite]`
 
-- Give exactly one of `--manifest-input` or `--sql-input`. `--table-metadata` and `--dataset-output` are always required.
+- Give exactly one of `--manifest-input` or `--sql-input`. `--dataset-output` is always required, plus `--table-metadata` and/or `--table-list`. `--domain` and `--boundary` only work with `--table-list`.
+- **Table list** (`--table-list TABLES.csv`): only the listed tables are generated. The file is a `table name` column, a one-column CSV, or a `.txt` with one table per line; each as `table`, `schema.table` or `database.schema.table`. A listed table with a row in the table metadata CSV takes that row; any other listed table takes `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` and has no upstream dataset. With a table list, `--table-metadata` can be left out. Listed tables that are not in the source give `TABLE_LIST_NOT_IN_SOURCE`.
+- **Dataset names** are `database.schema.table`. The database is the manifest's `logicalName` or the database written in the SQL; pass `--database-name DB` to set or replace it. Ask the user which database name to use when the tool warns `DATASET_DATABASE_MISSING`.
 - With SQL: the schema comes from `schema.table` (or `--default-schema`; without either the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported). A column's `description` comes from a SQL comment when there is one. Views are skipped.
 - Exit codes: 0 ok, 1 validation errors (nothing written), 2 usage error, 3 I/O or parse failure, 4 internal error.
 
 ## Workflow
 1. Confirm the inputs, the options above and the output directory with the user.
 2. Run the command and show everything it printed, including every warning and the final `DATASET_SUMMARY` line (tables read, metadata rows, manifests generated).
-3. Explain the outcome. One `manifest_<table>.json` is written per table that has a metadata row. **Only tables with a metadata row are generated**, so if fewer manifests than tables were written, the summary and `TABLE_WITHOUT_METADATA` say how many tables had no row.
+3. Explain the outcome. One `manifest_<table>.json` is written per table that has a metadata row. **Only tables with a metadata row (or, with a table list, only the listed tables) are generated**, so if fewer manifests than tables were written, the summary and `TABLE_WITHOUT_METADATA` say how many tables had no row.
    - `METADATA_TABLE_NOT_IN_MANIFEST`: a CSV row matches no table (spelling; views are not mapped); no file for it.
    - `MANIFEST_TABLE_SKIPPED`: table entries without a `physicalName` could not be read.
    - `MANIFEST_LENIENT_READ`: the manifest had JSON syntax errors (for example trailing commas) and only its `databases` section was read.

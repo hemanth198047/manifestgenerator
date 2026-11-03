@@ -18,7 +18,7 @@ public final class TableMetadataCsv {
     public static final String DEFAULT_GLOSSARY = "Operations DGC Glossary";
 
     public record Row(String table, String domain, String glossary, String boundary, String upstreamDataset,
-                      String producerEonId, int line) {}
+                      String producerEonId, int line, String qualifier) {}
 
     public record Result(List<Row> rows, List<Finding> findings) {}
 
@@ -76,20 +76,26 @@ public final class TableMetadataCsv {
                         "Fill in the table name or remove the row."));
                 continue;
             }
-            String domain = cell(rec, idx.get("domain"));
-            String glossary = DEFAULT_GLOSSARY;
-            int open = domain.lastIndexOf('(');
-            if (open > 0 && domain.endsWith(")")) {
-                glossary = domain.substring(open + 1, domain.length() - 1).trim();
-                domain = domain.substring(0, open).trim();
-            }
-            rows.add(new Row(table, domain, glossary, cell(rec, idx.get("boundary")), cell(rec, idx.get("upstream")),
-                    cell(rec, idx.get("eon")), line));
+            String[] dom = splitDomain(cell(rec, idx.get("domain")));
+            rows.add(new Row(table, dom[0], dom[1], cell(rec, idx.get("boundary")), cell(rec, idx.get("upstream")),
+                    cell(rec, idx.get("eon")), line, null));
         }
         if (truncatedRows(r)) {
             findings.add(Finding.warning("METADATA_TRUNCATED", in.name(), "The metadata file is longer than the supported number of rows.", "Split the file."));
         }
         return new Result(rows, findings);
+    }
+
+    /** "Account (Operations DGC Glossary)" to {"Account", "Operations DGC Glossary"}; without parentheses the default glossary is used. */
+    public static String[] splitDomain(String text) {
+        String domain = text == null ? "" : text.trim();
+        String glossary = DEFAULT_GLOSSARY;
+        int open = domain.lastIndexOf('(');
+        if (open > 0 && domain.endsWith(")")) {
+            glossary = domain.substring(open + 1, domain.length() - 1).trim();
+            domain = domain.substring(0, open).trim();
+        }
+        return new String[] {domain, glossary};
     }
 
     private static boolean truncatedRows(Csv.Result r) {

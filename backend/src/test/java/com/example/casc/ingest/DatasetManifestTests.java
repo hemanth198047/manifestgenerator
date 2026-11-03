@@ -284,6 +284,65 @@ public final class DatasetManifestTests {
                 eq(1, c.datasets());
             }
         });
+        test("table list: only the listed tables are generated, with defaults from --domain/--boundary or from a metadata row", () -> {
+            var sel = new DatasetManifestIngestion.TableSelection(SourceInput.of("tables.csv", "table name\nTAPSAccount\nNope\nTAPSAccount\n"), "Account (Operations DGC Glossary)", "Firmwide");
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null, sel);
+            yes(!r.hasErrors(), r.findings().toString());
+            eq(1, r.manifests().size());
+            Map<String, Object> d = dataset(r.manifests().get(0));
+            eq("TBD.a2oltp.TAPSAccount", d.get("name"));
+            eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(d.get("dgcDataDomains")));
+            eq("[{\"product\":[\"Firmwide\"]}]", Json.writeCompact(d.get("boundaries")));
+            yes(!d.containsKey("upstreamDatasets"), "no upstream");
+            yes(has(r, "TABLE_LIST_NOT_IN_SOURCE") && has(r, "TABLE_LIST_DUPLICATE") && has(r, "TABLE_LIST_DEFAULTS_USED") && has(r, "TABLE_WITHOUT_METADATA"), r.findings().toString());
+            // a metadata row for a listed table wins over the defaults; rows of tables that are not listed are ignored
+            String meta = "table name,domain,boundary,upstream dataset,producer eonid\nTAPSAccount,Party,Own boundary,a2.dbo.T,3212\nCanadaReportingJurisdiction,Party,X,a2.dbo.C,3212\n";
+            var both = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("meta.csv", meta), null, true, null,
+                    new DatasetManifestIngestion.TableSelection(SourceInput.of("tables.csv", "TAPSAccount\n"), "Account", "Firmwide"));
+            eq(1, both.manifests().size());
+            Map<String, Object> b = dataset(both.manifests().get(0));
+            eq("[{\"product\":[\"Own boundary\"]}]", Json.writeCompact(b.get("boundaries")));
+            eq("[{\"name\":\"a2.dbo.T\",\"producerEonId\":3212}]", Json.writeCompact(b.get("upstreamDatasets")));
+            // without metadata or defaults the missing values are reported
+            var bare = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null,
+                    new DatasetManifestIngestion.TableSelection(SourceInput.of("tables.csv", "TAPSAccount\n"), null, null));
+            eq(1, bare.manifests().size());
+            yes(has(bare, "METADATA_VALUE_MISSING"), "no domain or boundary");
+        });
+        test("table list: .txt, one-column CSV and qualified names; wrong qualifier or header is reported", () -> {
+            var sel = new DatasetManifestIngestion.TableSelection(SourceInput.of("t.txt", "# my tables\n\na2oltp.TAPSAccount\nTBD.a2oltp.CanadaReportingJurisdiction\nother.TAPSAccount\n"), "Account", "F");
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null, sel);
+            eq(2, r.manifests().size());
+            yes(has(r, "TABLE_LIST_NOT_IN_SOURCE"), "other.TAPSAccount has the wrong schema");
+            var one = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null,
+                    new DatasetManifestIngestion.TableSelection(SourceInput.of("t.csv", "TAPSAccount\nCanadaReportingJurisdiction\n"), "Account", "F"));
+            eq(2, one.manifests().size());
+            var bad = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null,
+                    new DatasetManifestIngestion.TableSelection(SourceInput.of("t.csv", "a,b\nx,y\n"), "Account", "F"));
+            yes(has(bad, "TABLE_LIST_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a table name column");
+        });
+        test("table list: the CLI works without --table-metadata, and rejects missing or misplaced options", () -> {
+            Path dir = tempDir("casc-tablelist");
+            try {
+                Files.writeString(dir.resolve("s.sql"), SQL);
+                Files.writeString(dir.resolve("tables.csv"), "table name\nTAPSAccount\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                eq(0, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-list", dir.resolve("tables.csv").toString(),
+                        "--domain", "Account (Operations DGC Glossary)", "--boundary", "Firmwide", "--no-upstream", "--database-name", "DB", "--dataset-output", dir.resolve("out").toString()},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                String written = Files.readString(dir.resolve("out/manifest_TAPSAccount.json"));
+                contains(written, "\"name\": \"DB.a2oltp.TAPSAccount\"");
+                contains(written, "\"domainName\": \"Account\"");
+                yes(!Files.exists(dir.resolve("out/manifest_Plain.json")), "only listed tables");
+                eq(2, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--dataset-output", dir.resolve("o2").toString()},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                eq(2, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-metadata", dir.resolve("tables.csv").toString(),
+                        "--domain", "Account", "--dataset-output", dir.resolve("o3").toString()}, InputStream.nullInputStream(), po, po, k -> null));
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("datasets: the CLI accepts --no-upstream", () -> {
             Path dir = tempDir("casc-datasets-noup");
             try {

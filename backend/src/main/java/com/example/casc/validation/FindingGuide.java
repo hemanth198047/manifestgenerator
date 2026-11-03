@@ -521,6 +521,30 @@ public final class FindingGuide {
           "No table column was found, so rows were assigned to the nearest heading above them.",
           "Check that each heading really is a table name.",
           "docs/INGESTION.md");
+        e("TABLE_LIST_COLUMN_MISSING", "Table list has no table name column",
+          "The file has several columns but none is called `table name`.",
+          "Add the header `table name`, or use a file with one column of table names.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_LIST_DEFAULTS_USED", "Defaults used for listed tables",
+          "Some listed tables have no row in the table metadata, so the domain and boundary given with --domain and --boundary were used for them (and they have no upstream dataset).",
+          "Add a row for a table to the table metadata if it needs its own domain, boundary or upstream.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_LIST_DUPLICATE", "Table listed twice",
+          "The same table appears more than once in the table list; the first entry was used.",
+          "Delete the duplicate.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_LIST_ENTRY_SKIPPED", "Table list entry skipped",
+          "An entry is not a usable table name.",
+          "Write the table as table, schema.table or database.schema.table.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_LIST_NOT_IN_SOURCE", "Listed table not found in the source",
+          "A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A schema.table or database.schema.table must match the source.",
+          "Correct the name (matching ignores case), or add the table to the source, or delete the entry.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_LIST_UNREADABLE", "Table list unusable",
+          "The table list could not be read, has no rows or contains no table names.",
+          "Fix the file: a header `table name` and one table per row, or one table per line in a .txt file.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_WITHOUT_METADATA", "Manifest table not in the metadata",
           "Some tables in the manifest have no row in the CSV, so no manifest was generated for them. This is expected when only some tables need dataset manifests.",
           "Add a row to the CSV for every table that needs a dataset manifest.",

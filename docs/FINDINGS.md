@@ -1008,6 +1008,54 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Check that each heading really is a table name.
 - **Where to look:** docs/INGESTION.md
 
+## TABLE_LIST_COLUMN_MISSING
+
+**Table list has no table name column**
+
+- **What it means:** The file has several columns but none is called `table name`.
+- **How to fix it:** Add the header `table name`, or use a file with one column of table names.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_LIST_DEFAULTS_USED
+
+**Defaults used for listed tables**
+
+- **What it means:** Some listed tables have no row in the table metadata, so the domain and boundary given with --domain and --boundary were used for them (and they have no upstream dataset).
+- **How to fix it:** Add a row for a table to the table metadata if it needs its own domain, boundary or upstream.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_LIST_DUPLICATE
+
+**Table listed twice**
+
+- **What it means:** The same table appears more than once in the table list; the first entry was used.
+- **How to fix it:** Delete the duplicate.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_LIST_ENTRY_SKIPPED
+
+**Table list entry skipped**
+
+- **What it means:** An entry is not a usable table name.
+- **How to fix it:** Write the table as table, schema.table or database.schema.table.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_LIST_NOT_IN_SOURCE
+
+**Listed table not found in the source**
+
+- **What it means:** A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A schema.table or database.schema.table must match the source.
+- **How to fix it:** Correct the name (matching ignores case), or add the table to the source, or delete the entry.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_LIST_UNREADABLE
+
+**Table list unusable**
+
+- **What it means:** The table list could not be read, has no rows or contains no table names.
+- **How to fix it:** Fix the file: a header `table name` and one table per row, or one table per line in a .txt file.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## TABLE_WITHOUT_METADATA
 
 **Manifest table not in the metadata**

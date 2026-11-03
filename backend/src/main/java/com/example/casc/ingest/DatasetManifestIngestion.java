@@ -57,10 +57,19 @@ public final class DatasetManifestIngestion {
      * (the manifest's logicalName, or the database written in the SQL).
      */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream, String databaseName) {
+        return generate(manifestJson, metadataCsv, columnCsv, includeUpstream, databaseName, null);
+    }
+
+    /** Which tables to generate: a table list (with optional default domain and boundary) instead of, or together with, the metadata CSV. */
+    public record TableSelection(SourceInput tableList, String domain, String boundary) {}
+
+    /** metadataCsv may be null when selection has a table list. selection may be null. */
+    public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream, String databaseName,
+                                  TableSelection selection) {
         List<Finding> findings = new ArrayList<>();
         ManifestTables.Result tables = ManifestTables.read(manifestJson);
         findings.addAll(tables.findings());
-        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv, includeUpstream, databaseName);
+        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv, includeUpstream, databaseName, selection);
     }
 
     /**
@@ -87,6 +96,12 @@ public final class DatasetManifestIngestion {
     /** databaseName (may be null): the database part of every dataset name (db.schema.table); null uses the database written in the SQL. */
     public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
                                          SourceInput columnCsv, boolean includeUpstream, String databaseName) {
+        return generateFromSql(sql, metadataCsv, options, defaultSchema, columnCsv, includeUpstream, databaseName, null);
+    }
+
+    /** metadataCsv may be null when selection has a table list. selection may be null. */
+    public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
+                                         SourceInput columnCsv, boolean includeUpstream, String databaseName, TableSelection selection) {
         List<Finding> findings = new ArrayList<>();
         RawMetadataBundle bundle = SourceIngestionService.standard().ingest(sql, options);
         findings.addAll(bundle.findings());
@@ -117,13 +132,19 @@ public final class DatasetManifestIngestion {
             findings.add(Finding.warning("DATASET_SCHEMA_MISSING", label, noSchema + " table(s) have no schema in the SQL, so their datasets are named with the table name only.",
                     "Qualify the table names in the SQL (schema.table) or pass --default-schema SCHEMA, then run again with --overwrite."));
         }
-        return build(tables, findings, label, metadataCsv, columnCsv, includeUpstream, databaseName);
+        return build(tables, findings, label, metadataCsv, columnCsv, includeUpstream, databaseName, selection);
     }
 
     private static Result build(List<Table> sourceTables, List<Finding> findings, String sourceName, SourceInput metadataCsv, SourceInput columnCsv,
-                                boolean includeUpstream, String databaseName) {
-        TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv, includeUpstream);
+                                boolean includeUpstream, String databaseName, TableSelection selection) {
+        SourceInput listInput = selection == null ? null : selection.tableList();
+        String metaName = metadataCsv != null ? metadataCsv.name() : listInput != null ? listInput.name() : "the metadata";
+        TableMetadataCsv.Result meta = metadataCsv != null ? TableMetadataCsv.parse(metadataCsv, includeUpstream) : new TableMetadataCsv.Result(List.of(), List.of());
         findings.addAll(meta.findings());
+        TableListCsv.Result list = listInput != null ? TableListCsv.parse(listInput) : null;
+        if (list != null) {
+            findings.addAll(list.findings());
+        }
         ColumnMetadataCsv.Result colMeta = columnCsv == null ? ColumnMetadataCsv.Result.empty() : ColumnMetadataCsv.parse(columnCsv);
         findings.addAll(colMeta.findings());
         List<Table> withDb = new ArrayList<>();
@@ -131,7 +152,36 @@ public final class DatasetManifestIngestion {
             withDb.add(databaseName == null || databaseName.isBlank() ? t : new Table(databaseName.trim(), t.schema(), t.name(), t.description(), t.columns()));
         }
         List<Table> allTables = applyColumnMetadata(withDb, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
-        if (allTables.isEmpty() || meta.rows().isEmpty() || findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
+
+        // the rows that drive generation: the metadata rows, or (with a table list) one row per listed table
+        java.util.Set<Row> defaulted = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<Row> rows;
+        if (list == null) {
+            rows = meta.rows();
+        } else {
+            Map<String, Row> metaByTable = new HashMap<>();
+            for (Row r : meta.rows()) {
+                metaByTable.putIfAbsent(r.table().toLowerCase(Locale.ROOT), r);
+            }
+            String[] dom = TableMetadataCsv.splitDomain(selection.domain());
+            rows = new ArrayList<>();
+            for (TableListCsv.Entry e : list.entries()) {
+                Row m = metaByTable.get(e.table().toLowerCase(Locale.ROOT));
+                if (m != null) {
+                    rows.add(new Row(e.table(), m.domain(), m.glossary(), m.boundary(), m.upstreamDataset(), m.producerEonId(), m.line(), e.qualifier()));
+                } else {
+                    Row d = new Row(e.table(), dom[0], dom[1], selection.boundary() == null ? "" : selection.boundary().trim(), "", "", e.line(), e.qualifier());
+                    rows.add(d);
+                    defaulted.add(d);
+                }
+            }
+            if (!defaulted.isEmpty() && (!dom[0].isEmpty() || selection.boundary() != null)) {
+                findings.add(Finding.info("TABLE_LIST_DEFAULTS_USED", listInput.name(), defaulted.size() + " listed table(s) have no row in the table metadata, so the domain and boundary "
+                        + "given with --domain and --boundary were used" + (includeUpstream ? " and they have no upstream dataset" : "") + ".",
+                        "Add a row for a table to the table metadata if it needs its own domain, boundary or upstream."));
+            }
+        }
+        if (allTables.isEmpty() || rows.isEmpty() || findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             return new Result(List.of(), findings);
         }
         Map<String, List<Table>> byName = new HashMap<>();
@@ -142,30 +192,48 @@ public final class DatasetManifestIngestion {
         Set<String> seenRows = new HashSet<>();
         int missingDb = 0;
         Set<String> usedNames = new HashSet<>();
-        for (Row row : meta.rows()) {
-            String key = row.table().toLowerCase(Locale.ROOT);
+        Set<String> generatedTables = new HashSet<>();
+        for (Row row : rows) {
+            String key = ((row.qualifier() == null ? "" : row.qualifier() + ".") + row.table()).toLowerCase(Locale.ROOT);
             if (!seenRows.add(key)) {
-                findings.add(Finding.warning("METADATA_DUPLICATE_TABLE", metadataCsv.name() + ":line " + row.line(),
+                findings.add(Finding.warning("METADATA_DUPLICATE_TABLE", metaName + ":line " + row.line(),
                         "Table '" + row.table() + "' is listed more than once; the first row was used.", "Remove the duplicate row."));
                 continue;
             }
-            List<Table> matches = byName.get(key);
-            if (matches == null) {
-                findings.add(Finding.warning("METADATA_TABLE_NOT_IN_MANIFEST", metadataCsv.name() + ":line " + row.line(),
-                        "Table '" + row.table() + "' is not defined in " + sourceName + ", so no manifest was generated for it.",
-                        "Correct the table name in the CSV (names are matched ignoring case), or add the table to " + sourceName + ", or delete the row. If " + sourceName + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
+            List<Table> matches = new ArrayList<>();
+            for (Table t : byName.getOrDefault(row.table().toLowerCase(Locale.ROOT), List.of())) {
+                if (qualifierMatches(t, row.qualifier())) {
+                    matches.add(t);
+                }
+            }
+            if (matches.isEmpty()) {
+                String shown = (row.qualifier() == null ? "" : row.qualifier() + ".") + row.table();
+                if (list != null) {
+                    findings.add(Finding.warning("TABLE_LIST_NOT_IN_SOURCE", listInput.name() + ":line " + row.line(),
+                            "Table '" + shown + "' is not defined in " + sourceName + ", so no manifest was generated for it.",
+                            "Correct the name in the table list (names are matched ignoring case; a schema.table or database.schema.table must match the source), or add the table to "
+                                    + sourceName + ". If " + sourceName + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (TABLE_LIST_NOT_IN_SOURCE)."));
+                } else {
+                    findings.add(Finding.warning("METADATA_TABLE_NOT_IN_MANIFEST", metaName + ":line " + row.line(),
+                            "Table '" + row.table() + "' is not defined in " + sourceName + ", so no manifest was generated for it.",
+                            "Correct the table name in the CSV (names are matched ignoring case), or add the table to " + sourceName + ", or delete the row. If " + sourceName
+                                    + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
+                }
                 continue;
             }
-            for (String problem : problems(row, includeUpstream)) {
-                findings.add(Finding.warning("METADATA_VALUE_MISSING", metadataCsv.name() + ":line " + row.line(),
-                        "Table '" + row.table() + "': " + problem, "Fill in the value in the metadata CSV and run again with --overwrite."));
+            for (String problem : problems(row, includeUpstream && !defaulted.contains(row))) {
+                findings.add(Finding.warning("METADATA_VALUE_MISSING", (defaulted.contains(row) ? listInput.name() : metaName) + ":line " + row.line(),
+                        "Table '" + row.table() + "': " + problem,
+                        defaulted.contains(row) ? "Pass --domain and --boundary, or add a row for the table to --table-metadata, then run again with --overwrite."
+                                : "Fill in the value in the metadata CSV and run again with --overwrite."));
             }
             for (Table t : matches) {
                 if (t.database() == null) {
                     missingDb++;
                 }
+                generatedTables.add(t.name().toLowerCase(Locale.ROOT));
                 String file = fileName(t, matches.size() > 1, usedNames);
-                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metadataCsv.name(), includeUpstream)) + "\n"));
+                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream)) + "\n"));
             }
         }
         if (missingDb > 0) {
@@ -173,7 +241,7 @@ public final class DatasetManifestIngestion {
                     "Pass --database-name NAME, or give the database in the source (the manifest's logicalName, or database.schema.table in the SQL), then run again with --overwrite."));
         }
         Set<String> described = new HashSet<>();
-        for (Row r : meta.rows()) {
+        for (Row r : rows) {
             described.add(r.table().toLowerCase(Locale.ROOT));
         }
         int skipped = 0;
@@ -184,16 +252,30 @@ public final class DatasetManifestIngestion {
         }
         if (skipped > 0) {
             findings.add(Finding.info("TABLE_WITHOUT_METADATA", sourceName, skipped + " table(s) in " + sourceName + " have no row in "
-                    + metadataCsv.name() + " and were not generated.", "If those tables need a dataset manifest, add a row for each to the metadata CSV and run again with --overwrite. Otherwise nothing to do."));
+                    + metaName + " and were not generated.", list != null
+                    ? "If those tables need a dataset manifest, add them to the table list and run again with --overwrite. Otherwise nothing to do."
+                    : "If those tables need a dataset manifest, add a row for each to the metadata CSV and run again with --overwrite. Otherwise nothing to do."));
         }
-        findings.add(Finding.info("DATASET_SUMMARY", sourceName, "Read " + allTables.size() + " table(s) from " + sourceName + "; " + metadataCsv.name() + " has "
-                + meta.rows().size() + " row(s); generated " + out.size() + " dataset manifest(s). Only tables that have a metadata row are generated.",
-                "If fewer manifests were generated than you expected, check the warnings above: rows that match no table, duplicate rows, and tables without a row."));
+        findings.add(Finding.info("DATASET_SUMMARY", sourceName, "Read " + allTables.size() + " table(s) from " + sourceName + "; " + metaName + " has "
+                + rows.size() + (list != null ? " table(s)" : " row(s)") + "; generated " + out.size() + " dataset manifest(s). Only "
+                + (list != null ? "tables in the table list" : "tables that have a metadata row") + " are generated.",
+                "If fewer manifests were generated than you expected, check the warnings above: entries that match no table, duplicates, and tables that are not listed."));
         if (out.isEmpty()) {
-            findings.add(Finding.error("NO_TABLES_MATCHED", metadataCsv.name(), "No table in the metadata file matches a table in the manifest.",
+            findings.add(Finding.error("NO_TABLES_MATCHED", metaName, "No table in " + metaName + " matches a table in " + sourceName + ".",
                     "Check the table names in both files."));
         }
         return new Result(out, findings);
+    }
+
+    /** qualifier null: any table; "schema": the schema must match; "database.schema": both must match (case ignored). */
+    private static boolean qualifierMatches(Table t, String qualifier) {
+        if (qualifier == null) {
+            return true;
+        }
+        int dot = qualifier.lastIndexOf('.');
+        String schema = dot >= 0 ? qualifier.substring(dot + 1) : qualifier;
+        String db = dot >= 0 ? qualifier.substring(0, dot) : null;
+        return t.schema() != null && t.schema().equalsIgnoreCase(schema.trim()) && (db == null || t.database() != null && t.database().equalsIgnoreCase(db.trim()));
     }
 
     /** Replaces (or supplies) each column's system data element with the externally given one; reports entries that match nothing. */

@@ -108,6 +108,11 @@ The tables can also come from SQL DDL instead of a manifest JSON: `ingest --sql-
 With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
 a column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one; SQL has no system data elements, so `systemDataElements` is left out; views are skipped (`DATASET_VIEW_SKIPPED`).
 
+**Choosing the tables from a list.** Instead of (or together with) the metadata CSV, give `--table-list FILE`: the tables to generate. The file is a CSV or TSV with a `table name` column, a one-column file, or a `.txt` file with one table per line (blank lines and `#` lines are ignored).
+A name may be `table`, `schema.table` or `database.schema.table`; the extra parts must match the source. Only listed tables are generated. A listed table takes its domain, boundary and upstream from its row in `--table-metadata` when it has one;
+otherwise `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` are used and it has no upstream dataset. `--table-metadata` can then be left out entirely (use `--no-upstream` when there are no upstreams).
+Listed tables that are not in the source are reported (`TABLE_LIST_NOT_IN_SOURCE`).
+
 **Tables without upstreams.** Add `--no-upstream` to either route: no `upstreamDatasets` is written, and the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional
 (the header then needs only `table name, domain, boundary`; if the columns are present they are ignored).
 
