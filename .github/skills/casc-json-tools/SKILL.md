@@ -14,14 +14,14 @@ description: Extracts any section from a JSON file and runs operations on it wit
 ## What to ask the user
 1. Which file, and what they want out of it: a section, a list of keys, counts, a changed copy, a merge, CSV, or a search.
 2. For changes (`set`, `delete`, `merge`): the output file. These commands never change the input file; to change a file in place the user must say so (same file with `--overwrite`).
-3. If the file has trailing or missing commas, add `--lenient`; the output is always valid JSON.
+3. If the file has trailing or missing commas, add `--lenient`; the output is always valid JSON. If only one section of the file is broken, `--lenient` still reads the others and says which it left out; tell the user so they can fix that section if they need it.
 
 ## Commands
 `run-cli json OPERATION --input FILE [options]` (`run-cli json` alone lists the operations).
 
 | Operation | Use |
 |-----------|-----|
-| `get --path P [--with-paths] [--compact] [--output FILE]` | Extract the section(s) a path selects. Several matches print an array, or `{path: value}` with `--with-paths`. |
+| `get --path P [--lines] [--with-paths] [--compact] [--output FILE]` | Extract the section(s) a path selects; `--lines` prints one value per line (good for lists of names). Several matches print an array, or `{path: value}` with `--with-paths`. |
 | `keys [--path P]` | Map of a file: keys with kind and size, or item kinds and keys of an array. Start here when you do not know the structure. |
 | `stats [--path P]` | Counts of objects, arrays, strings, numbers, booleans, nulls and depth |
 | `format [--compact] [--sort-keys] [--output FILE]` | Pretty-print, minify, sort keys |

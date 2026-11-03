@@ -558,7 +558,7 @@ public final class Cli {
 
     private static final String JSON_OPERATIONS = String.join("\n",
             "json OPERATION --input FILE [options]",
-            "  get       --path P [--with-paths] [--compact] [--output FILE]     print the section(s) a path selects",
+            "  get       --path P [--lines] [--with-paths] [--compact] [--output FILE]   print the section(s) a path selects (--lines: one value per line)",
             "  keys      [--path P]                                           list the keys (objects) or the item kinds (arrays) at a path",
             "  stats     [--path P]                                           count objects, arrays, strings, numbers, booleans, nulls and depth",
             "  format    [--compact] [--sort-keys] [--output FILE]            pretty-print or minify, optionally with sorted keys",
@@ -573,7 +573,7 @@ public final class Cli {
             "Paths: databases[0].schemas[*].tables[?physicalName=TAPSAccount]  [*] every item, [n] one item (-1 last), [a:b] slice,",
             "       [?field=value] filter (!= and ~contains also work), ..key any depth, [\"a.b\"] quoted key. See docs/COMMANDS.md.");
 
-    private record Loaded(Object root, long bytes, boolean lenient) {}
+    private record Loaded(Object root, long bytes, boolean lenient, Map<String, String> skipped) {}
 
     private static Loaded loadJson(String file, boolean lenient) throws IOException {
         SourceInput in = readSource(file);
@@ -581,16 +581,28 @@ public final class Cli {
             throw new IOException(file + ": " + (in.readError() == null ? "the file has no text" : in.readError()));
         }
         try {
-            return new Loaded(Json.parse(in.text()), in.text().length(), false);
+            return new Loaded(Json.parse(in.text()), in.text().length(), false, Map.of());
         } catch (JsonException strict) {
             if (lenient) {
                 try {
-                    return new Loaded(LenientJson.parse(in.text()), in.text().length(), true);
+                    return new Loaded(LenientJson.parse(in.text()), in.text().length(), true, Map.of());
                 } catch (IllegalArgumentException e) {
+                    LenientJson.Partial partial = LenientJson.parseTopLevel(in.text());
+                    if (partial != null && !partial.root().isEmpty()) {
+                        return new Loaded(partial.root(), in.text().length(), true, partial.skipped());
+                    }
                     throw new IOException(file + " is not valid JSON, even when commas are read leniently: " + e.getMessage() + ". Fix the syntax at that position.");
                 }
             }
             throw new IOException(file + " is not valid JSON: " + strict.getMessage() + ". Fix the syntax at that position, or add --lenient to accept trailing or missing commas.");
+        }
+    }
+
+    private static void skippedNote(String file, Loaded l, PrintStream err) {
+        if (!l.skipped().isEmpty()) {
+            err.println("Note: these top-level sections of " + file + " could not be read and were left out: "
+                    + String.join("; ", l.skipped().entrySet().stream().map(e -> e.getKey() + " (" + e.getValue() + ")").toList())
+                    + ". Fix the syntax there if you need them.");
         }
     }
 
@@ -627,7 +639,7 @@ public final class Cli {
             return USAGE;
         }
         Opts o = parse(args, 2, Set.of("--input", "--path", "--value", "--text", "--output", "--max"),
-                Set.of("--compact", "--sort-keys", "--lenient", "--overwrite", "--with-paths"));
+                Set.of("--compact", "--sort-keys", "--lenient", "--overwrite", "--with-paths", "--lines"));
         List<String> inputs = o.all("--input");
         if (inputs.isEmpty()) {
             throw new UsageException("json " + op + " needs --input FILE.");
@@ -653,6 +665,7 @@ public final class Cli {
             Loaded loaded = loadJson(inputs.get(0), lenient);
             if (loaded.lenient()) {
                 err.println("Note: " + inputs.get(0) + " is not strictly valid JSON; it was read leniently (trailing or missing commas accepted). Output is valid JSON.");
+                skippedNote(inputs.get(0), loaded, err);
             }
             Object root = loaded.root();
             switch (op) {
@@ -686,6 +699,15 @@ public final class Cli {
                             vals.add(x.value());
                         }
                         result = vals;
+                    }
+                    if (o.flags().contains("--lines")) {
+                        StringBuilder lines = new StringBuilder();
+                        for (JsonPath.Match x : m) {
+                            Object v = x.value();
+                            lines.append(v instanceof String str ? str : v instanceof Map<?, ?> || v instanceof List<?> ? Json.writeCompact(v) : v == null ? "null" : v instanceof java.math.BigDecimal bd ? bd.toPlainString() : String.valueOf(v)).append("\n");
+                        }
+                        emit(lines.toString(), o, out);
+                        return OK;
                     }
                     emit(render(result, o), o, out);
                     if (m.size() > 1 && o.get("--output", null) == null) {
@@ -891,6 +913,7 @@ public final class Cli {
                 sources.add(new JsonCompare.Source(name, root, l.bytes()));
                 if (l.lenient()) {
                     err.println("Note: " + f + " is not strictly valid JSON; it was read leniently.");
+                    skippedNote(f.toString(), l, err);
                 }
             }
         } catch (IOException e) {

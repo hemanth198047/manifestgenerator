@@ -97,6 +97,24 @@ public final class JsonToolsTests {
             }
             yes(threw, "still rejects real errors");
         });
+        test("json: a file broken in one section is still read section by section, and --lines prints one value per line", () -> {
+            String broken = "{\"a\":[1,2,],\"bad\":[ \"k\": 1 ],\"databases\":[{\"schemas\":[{\"tables\":[{\"physicalName\":\"T1\"},{\"physicalName\":\"T2\"},]}]}],\"tail\":\"x\"}";
+            var p = LenientJson.parseTopLevel(broken);
+            eq("[a, databases, tail]", p.root().keySet().toString());
+            eq("[bad]", p.skipped().keySet().toString());
+            yes(LenientJson.parseTopLevel("[1,2]") == null, "not an object");
+            Path dir = tempDir("casc-partial");
+            try {
+                Path f = dir.resolve("b.json");
+                Files.writeString(f, broken);
+                run(3, "json", "get", "--input", f.toString(), "--path", "databases");
+                String out = run(0, "json", "get", "--input", f.toString(), "--lenient", "--path", "databases[*].schemas[*].tables[*].physicalName", "--lines");
+                contains(out, "T1\nT2\n");
+                contains(out, "were left out: bad");
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("compare: rows are matched by an identifying field, and statuses are relative to the baseline", () -> {
             Object a = Json.parse("{\"t\":[{\"name\":\"A\",\"v\":1},{\"name\":\"B\",\"v\":2}],\"only\":1,\"s\":\"x\"}");
             Object b = Json.parse("{\"t\":[{\"name\":\"B\",\"v\":2},{\"name\":\"A\",\"v\":9}],\"s\":\"x\",\"extra\":true}");

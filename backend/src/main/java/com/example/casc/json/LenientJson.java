@@ -36,6 +36,86 @@ public final class LenientJson {
         return new LenientJson(text, start).value(0);
     }
 
+    /** The readable top-level sections of a JSON object, and the sections that had to be left out (name to the reason). */
+    public record Partial(Map<String, Object> root, Map<String, String> skipped) {}
+
+    /**
+     * For a document that is broken somewhere: reads each top-level section of the object on its own (leniently) and leaves out the sections that
+     * cannot be read, so the rest of the file is still usable. Returns null when the text is not an object at all.
+     */
+    public static Partial parseTopLevel(String text) {
+        String t = text.startsWith("\uFEFF") ? text.substring(1) : text;
+        LenientJson p = new LenientJson(t, 0);
+        p.ws();
+        if (p.i >= t.length() || t.charAt(p.i) != '{') {
+            return null;
+        }
+        p.i++;
+        Map<String, Object> root = new LinkedHashMap<>();
+        Map<String, String> skipped = new LinkedHashMap<>();
+        while (true) {
+            p.ws();
+            if (p.i >= t.length() || t.charAt(p.i) == '}') {
+                return new Partial(root, skipped);
+            }
+            if (t.charAt(p.i) == ',') {
+                p.i++;
+                continue;
+            }
+            if (t.charAt(p.i) != '"') {
+                return root.isEmpty() && skipped.isEmpty() ? null : new Partial(root, skipped);
+            }
+            String key;
+            try {
+                key = p.string();
+            } catch (IllegalArgumentException e) {
+                return root.isEmpty() ? null : new Partial(root, skipped);
+            }
+            p.ws();
+            if (p.i >= t.length() || t.charAt(p.i) != ':') {
+                return root.isEmpty() && skipped.isEmpty() ? null : new Partial(root, skipped);
+            }
+            p.i++;
+            p.ws();
+            int start = p.i;
+            try {
+                root.put(key, p.value(1));
+            } catch (IllegalArgumentException e) {
+                skipped.put(key, e.getMessage());
+                p.i = skipValue(t, start);
+            }
+        }
+    }
+
+    /** The offset just after the value that starts at the given offset, found by counting brackets (strings are skipped; a string ends at a line end). */
+    private static int skipValue(String t, int start) {
+        int depth = 0;
+        int k = start;
+        while (k < t.length()) {
+            char c = t.charAt(k);
+            if (c == '"') {
+                k++;
+                while (k < t.length() && t.charAt(k) != '"' && t.charAt(k) != '\n') {
+                    k += t.charAt(k) == '\\' ? 2 : 1;
+                }
+                k++;
+                continue;
+            }
+            if (c == '{' || c == '[') {
+                depth++;
+            } else if (c == '}' || c == ']') {
+                depth--;
+                if (depth <= 0) {
+                    return Math.min(k + 1, t.length());
+                }
+            } else if (depth == 0 && c == ',') {
+                return k;
+            }
+            k++;
+        }
+        return t.length();
+    }
+
     private IllegalArgumentException err(String message) {
         int line = 1;
         int col = 1;

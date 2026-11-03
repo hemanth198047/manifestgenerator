@@ -97,11 +97,11 @@ Merges the `datasets` of several dataset manifests into one `{"datasets": [...]}
 ## json
 `casc-generator json OPERATION --input FILE [options]` (`json` alone lists the operations).
 
-Works on any JSON file. Every operation takes `--lenient` (accept trailing or missing commas; output is always valid JSON). Results go to the console, or to a file with `--output FILE` (`--overwrite` to replace one).
+Works on any JSON file. Every operation takes `--lenient` (accept trailing or missing commas; output is always valid JSON). If a file is broken in one section only, `--lenient` still reads the other top-level sections and tells you which ones it left out. Results go to the console, or to a file with `--output FILE` (`--overwrite` to replace one).
 
 | Operation | Options | Result |
 |-----------|---------|--------|
-| `get` | `--path P` `[--with-paths]` `[--compact]` | The section(s) the path selects. One match prints the value; several print an array (or `{path: value}` with `--with-paths`). Exit 1 when nothing matches. |
+| `get` | `--path P` `[--lines]` `[--with-paths]` `[--compact]` | The section(s) the path selects. One match prints the value; several print an array (or `{path: value}` with `--with-paths`). `--lines` prints one value per line (strings without quotes), handy for lists of names. Exit 1 when nothing matches. |
 | `keys` | `[--path P]` | The keys of an object with the kind and size of each value, or the item kinds and keys of an array: a quick map of the file |
 | `stats` | `[--path P]` | Counts of objects, arrays, strings, numbers, booleans, nulls and the depth |
 | `format` | `[--compact]` `[--sort-keys]` | Pretty-print, minify, or sort keys |
@@ -137,6 +137,7 @@ casc-generator json set --input m.json --path 'datasets[0].format' --value '"Res
 casc-generator json delete --input m.json --path '..description' --output m2.json
 casc-generator json merge --input base.json --input override.json --output merged.json
 casc-generator json find --input manifest.json --text account
+casc-generator json get --input manifest.json --lenient --path 'databases[*].schemas[*].tables[*].physicalName' --lines   # just the table names
 ```
 
 ## compare
