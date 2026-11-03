@@ -31,3 +31,5 @@ out/
 *.iml
 .vscode/
 data/
+__pycache__/
+*.pyc

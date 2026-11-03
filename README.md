@@ -49,3 +49,5 @@ Exit codes: 0 ok, 1 validation errors, 2 usage error, 3 I/O or parse failure, 4 
 **All commands** are listed in `docs/COMMANDS.md`, including `json` (extract a section from a JSON file and run operations on it) and `compare` (compare several JSON files and write an HTML report).
 
 **Dataset manifests.** `ingest` can write one dataset manifest per table from a manifest JSON or SQL, choosing the tables with a table metadata CSV and/or a table list, with table descriptions and system data elements from CSV files, and optionally combine them into one manifest (`docs/INGESTION.md`, `docs/COMMANDS.md`).
+
+**Uploading to FDC.** The `fdc-manifest-upload` skill (`.github/skills/fdc-manifest-upload/`, see its README) uploads a manifest to a chosen FDC environment by running the existing upload script, with validation, SSO/PROID checks and explicit confirmation.

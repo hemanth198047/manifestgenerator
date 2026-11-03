@@ -97,6 +97,43 @@ public final class SkillFileTests {
         });
     }
 
+    public static void registerFdcUpload() {
+        test("fdc-manifest-upload skill: complete structure, the exact upload command, no copies of the upload script, and its Python unit tests pass", () -> {
+            Path dir = Path.of(".github/skills/fdc-manifest-upload");
+            if (!Files.isDirectory(dir)) {
+                throw new Skipped("run from the repository root to check the fdc-manifest-upload skill");
+            }
+            for (String f : java.util.List.of("SKILL.md", "README.md", "scripts/validate_upload_prerequisites.py", "scripts/auth_check.py", "scripts/run_upload.py", "scripts/fdc_common.py",
+                    "scripts/install_skill.py", "references/upload_workflow.md", "references/authentication.md", "references/troubleshooting.md", "references/generic_agent_instructions.md",
+                    "examples/sample_upload.md", "tests/test_validate.py", "tests/test_auth.py", "tests/test_run_upload.py")) {
+                yes(Files.isRegularFile(dir.resolve(f)), "missing " + f);
+            }
+            String command = "/ms/dist/edap/PROJ/fdc_automation/prod/scripts/casc_upload_manifest.py";
+            String skill = read(dir.resolve("SKILL.md"));
+            yes(skill.contains(command + " -s <server> -m <meta> -p <project> -r <release> -e <environment> -md <distribution system>"), "SKILL.md has the exact command");
+            yes(read(dir.resolve("scripts/fdc_common.py")).contains("DEFAULT_SCRIPT = \"" + command + "\""), "the script path is the given one");
+            for (String ref : java.util.List.of("references/upload_workflow.md", "references/authentication.md", "references/troubleshooting.md", "examples/sample_upload.md", "scripts/run_upload.py")) {
+                yes(skill.contains(ref.substring(ref.indexOf('/') + 1)) || skill.contains(ref), "SKILL.md mentions " + ref);
+            }
+            try (java.util.stream.Stream<Path> s = Files.walk(Path.of("."), 6)) {
+                yes(s.noneMatch(p -> p.getFileName() != null && p.getFileName().toString().equals("casc_upload_manifest.py")), "the upload script must not be copied into this repository");
+            }
+            Process proc;
+            try {
+                ProcessBuilder pb = new ProcessBuilder("python3", "-m", "unittest", "discover", "-s", "tests");
+                pb.directory(dir.toFile());
+                pb.environment().put("PYTHONDONTWRITEBYTECODE", "1");
+                pb.redirectErrorStream(true);
+                proc = pb.start();
+            } catch (IOException e) {
+                throw new Skipped("python3 is not available, so the skill's Python unit tests were not run");
+            }
+            String out = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            eq(0, proc.waitFor());
+            contains(out, "OK");
+        });
+    }
+
     private static String helpText() {
         java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
         com.example.casc.cli.Cli.run(new String[] {"help"}, InputStream.nullInputStream(), new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(o, true, StandardCharsets.UTF_8), k -> null);
