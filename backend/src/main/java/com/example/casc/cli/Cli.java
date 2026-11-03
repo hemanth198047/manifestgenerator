@@ -11,6 +11,8 @@ import com.example.casc.app.ExportService;
 import com.example.casc.domain.Enums;
 import com.example.casc.domain.Enums.DatabaseType;
 import com.example.casc.domain.Enums.InterfaceType;
+import com.example.casc.compare.HtmlReport;
+import com.example.casc.compare.JsonCompare;
 import com.example.casc.ingest.DatasetManifestCombiner;
 import com.example.casc.ingest.DatasetManifestIngestion;
 import com.example.casc.ingest.DraftBuilder;
@@ -23,6 +25,9 @@ import com.example.casc.net.UrlFetcher;
 import com.example.casc.net.UrlPolicy;
 import com.example.casc.json.Json;
 import com.example.casc.json.JsonException;
+import com.example.casc.json.JsonOps;
+import com.example.casc.json.JsonPath;
+import com.example.casc.json.LenientJson;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
 import com.example.casc.validation.Finding;
 import com.example.casc.validation.FindingGuide;
@@ -161,6 +166,11 @@ public final class Cli {
                             "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output",
                             "--combine-output", "--combine-count", "--combine-tables"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http", "--no-upstream", "--combined-only")), out, err);
+                case "json":
+                    return jsonCommand(args, out, err);
+                case "compare":
+                    return compare(parse(args, 1, Set.of("--input", "--output", "--path", "--key", "--title", "--json-output", "--max-rows"),
+                            Set.of("--overwrite", "--lenient", "--fail-on-diff")), out, err);
                 case "combine":
                     return combine(parse(args, 1, Set.of("--input", "--output", "--count", "--tables"), Set.of("--overwrite")), out, err);
                 case "explain":
@@ -193,25 +203,33 @@ public final class Cli {
 
     private static void usage(PrintStream p) {
         p.println("Usage: casc-generator <command> [options]");
-        p.println("  web [--bind ADDR] [--port N] [--max-body-bytes N]   start the web UI (default 127.0.0.1:8080)");
+        p.println("Manifests");
         p.println("  validate --input FILE [--json]                        validate a manifest (JSON)");
         p.println("  export --input FILE --output FILE [--format json|yaml] [--overwrite] [--allow-invalid]");
+        p.println("  explain [CODE]                                        explain a finding code in plain language (no CODE: list all codes)");
+        p.println("Ingest (read sources, draft a manifest)");
         p.println("  ingest --input-files PATH [--input-files PATH ...] [--url URL ...]   read SQL, CSV, TSV, TXT, Markdown, OpenAPI JSON");
         p.println("         [--url-allow HOST ...] [--url-allow-http] [--url-timeout S] [--url-max-bytes N]   URL fetching (blocked unless hosts are allowed)");
-        p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
-        p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
-        p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   write one dataset manifest per table");
-        p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
-        p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
-        p.println("         add --combine-output FILE to also write all (or --combine-count N / --combine-tables A,B,...) datasets into one manifest; --combined-only skips the per-table files");
-        p.println("  combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]   combine dataset manifests into one");
-        p.println("         add --no-upstream when the tables have no upstream datasets (no upstreamDatasets are written; the metadata needs no upstream columns)");
-        p.println("         add --column-metadata FILE (table name, column name, system data element) to supply systemDataElements for columns from outside the source");
-        p.println("         (tables come from the manifest's databases section; domain, boundary, upstream dataset and producer EON ID from the metadata CSV)");
         p.println("         [--bundle-output FILE] [--json] [--root DIR] [--dialect D] [--delimiter D] [--no-header] [--header-row N]");
         p.println("         [--sheet NAME|NUMBER] (spreadsheets, with the POI adapter)");
         p.println("         [--mode auto|data|dictionary] [--max-rows N] [--map table|column|description|type|schema=HEADER] [--overwrite]");
-        p.println("  explain [CODE]                                        explain a finding code in plain language (no CODE: list all codes)");
+        p.println("         [--interface-direction SOURCING|DISTRIBUTION]   draft OpenAPI operations as interfaces");
+        p.println("         [--db-name NAME --output FILE [--db-type TYPE] [--default-schema S] [--format json|yaml]]  write a draft manifest");
+        p.println("Dataset manifests (one per table)");
+        p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   tables from a manifest JSON");
+        p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
+        p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
+        p.println("         [--column-metadata FILE]  system data elements per column (table name, column name, system data element)");
+        p.println("         [--no-upstream]  no upstreamDatasets; the metadata needs only table name, domain, boundary");
+        p.println("         [--combine-output FILE [--combine-count N | --combine-tables A,B,...] [--combined-only]]  also write one combined manifest");
+        p.println("  combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]   combine dataset manifests into one");
+        p.println("JSON files");
+        p.println("  json OPERATION --input FILE [options]                 get, keys, stats, format, set, delete, merge, flatten, csv, find, validate");
+        p.println("         run 'json' alone to list the operations and their options");
+        p.println("  compare --input FILE_OR_DIR --input FILE_OR_DIR [...] --output REPORT.html   compare JSON files and write an HTML report");
+        p.println("         [--json-output FILE] [--path SECTION] [--key FIELD,...] [--title TEXT] [--max-rows N] [--lenient] [--fail-on-diff] [--overwrite]");
+        p.println("Servers, agents and information");
+        p.println("  web [--bind ADDR] [--port N] [--max-body-bytes N]   start the web UI (default 127.0.0.1:8080)");
         p.println("  tools                                                 list the agent tool contracts as JSON");
         p.println("  tool NAME --request FILE|-  [--fail-on-errors]       run ingest_sources, validate_manifest_payload or generate_casc_manifest;");
         p.println("         JSON in (file, or '-' for standard input), one JSON document out on standard output; [--url-allow HOST ...]");
@@ -533,6 +551,374 @@ public final class Cli {
         }
         out.println("Wrote " + c.datasets() + " dataset(s) combined into " + outPath);
         return OK;
+    }
+
+
+    // ------------------------------------------------------------------ json and compare
+
+    private static final String JSON_OPERATIONS = String.join("\n",
+            "json OPERATION --input FILE [options]",
+            "  get       --path P [--with-paths] [--compact] [--output FILE]     print the section(s) a path selects",
+            "  keys      [--path P]                                           list the keys (objects) or the item kinds (arrays) at a path",
+            "  stats     [--path P]                                           count objects, arrays, strings, numbers, booleans, nulls and depth",
+            "  format    [--compact] [--sort-keys] [--output FILE]            pretty-print or minify, optionally with sorted keys",
+            "  set       --path P --value JSON --output FILE                  set a value (creates missing keys; * and filters set several)",
+            "  delete    --path P --output FILE                               remove the selected keys or items",
+            "  merge     --input A --input B [...] --output FILE              deep-merge several files (later wins; arrays are replaced)",
+            "  flatten   [--path P] [--output FILE]                           one line per value: path = value",
+            "  csv       --path P [--output FILE]                             an array of objects as CSV",
+            "  find      --text T [--max N]                                   paths whose key or value contains the text",
+            "  validate                                                       check that the file is valid JSON",
+            "Common options: --lenient (accept trailing or missing commas), --overwrite (replace an existing --output file).",
+            "Paths: databases[0].schemas[*].tables[?physicalName=TAPSAccount]  [*] every item, [n] one item (-1 last), [a:b] slice,",
+            "       [?field=value] filter (!= and ~contains also work), ..key any depth, [\"a.b\"] quoted key. See docs/COMMANDS.md.");
+
+    private record Loaded(Object root, long bytes, boolean lenient) {}
+
+    private static Loaded loadJson(String file, boolean lenient) throws IOException {
+        SourceInput in = readSource(file);
+        if (in.readError() != null || in.text() == null) {
+            throw new IOException(file + ": " + (in.readError() == null ? "the file has no text" : in.readError()));
+        }
+        try {
+            return new Loaded(Json.parse(in.text()), in.text().length(), false);
+        } catch (JsonException strict) {
+            if (lenient) {
+                try {
+                    return new Loaded(LenientJson.parse(in.text()), in.text().length(), true);
+                } catch (IllegalArgumentException e) {
+                    throw new IOException(file + " is not valid JSON, even when commas are read leniently: " + e.getMessage() + ". Fix the syntax at that position.");
+                }
+            }
+            throw new IOException(file + " is not valid JSON: " + strict.getMessage() + ". Fix the syntax at that position, or add --lenient to accept trailing or missing commas.");
+        }
+    }
+
+    private static List<JsonPath.Match> selectOrUsage(Object root, String path) throws UsageException {
+        try {
+            return JsonPath.select(root, path == null ? "$" : path);
+        } catch (IllegalArgumentException e) {
+            throw new UsageException("Bad --path '" + path + "': " + e.getMessage());
+        }
+    }
+
+    private static void emit(String text, Opts o, PrintStream out) throws IOException {
+        if (o.get("--output", null) != null) {
+            writeAtomically(Path.of(o.get("--output", null)), text, o.flags().contains("--overwrite"));
+            out.println("Wrote " + Path.of(o.get("--output", null)).toAbsolutePath());
+        } else {
+            out.print(text);
+        }
+    }
+
+    private static String render(Object v, Opts o) {
+        return (o.flags().contains("--compact") ? Json.writeCompact(v) : Json.write(v)) + "\n";
+    }
+
+    private static int jsonCommand(String[] args, PrintStream out, PrintStream err) throws UsageException {
+        if (args.length < 2 || args[1].startsWith("--")) {
+            out.println(JSON_OPERATIONS);
+            return args.length < 2 ? OK : USAGE;
+        }
+        String op = args[1];
+        if (!Set.of("get", "keys", "stats", "format", "set", "delete", "merge", "flatten", "csv", "find", "validate").contains(op)) {
+            err.println("Unknown json operation '" + op + "'.");
+            err.println(JSON_OPERATIONS);
+            return USAGE;
+        }
+        Opts o = parse(args, 2, Set.of("--input", "--path", "--value", "--text", "--output", "--max"),
+                Set.of("--compact", "--sort-keys", "--lenient", "--overwrite", "--with-paths"));
+        List<String> inputs = o.all("--input");
+        if (inputs.isEmpty()) {
+            throw new UsageException("json " + op + " needs --input FILE.");
+        }
+        if (!op.equals("merge") && inputs.size() > 1) {
+            throw new UsageException("json " + op + " takes one --input FILE; use 'merge' to combine files or 'compare' to compare them.");
+        }
+        String path = o.get("--path", null);
+        boolean lenient = o.flags().contains("--lenient");
+        try {
+            if (op.equals("merge")) {
+                if (inputs.size() < 2 || o.get("--output", null) == null) {
+                    throw new UsageException("json merge needs at least two --input files and --output FILE.");
+                }
+                Object merged = null;
+                for (String f : inputs) {
+                    Object next = loadJson(f, lenient).root();
+                    merged = merged == null ? next : JsonOps.merge(merged, next);
+                }
+                emit(render(o.flags().contains("--sort-keys") ? JsonOps.sortKeys(merged) : merged, o), o, out);
+                return OK;
+            }
+            Loaded loaded = loadJson(inputs.get(0), lenient);
+            if (loaded.lenient()) {
+                err.println("Note: " + inputs.get(0) + " is not strictly valid JSON; it was read leniently (trailing or missing commas accepted). Output is valid JSON.");
+            }
+            Object root = loaded.root();
+            switch (op) {
+                case "validate": {
+                    out.println("OK: " + inputs.get(0) + " is " + (loaded.lenient() ? "readable JSON (only with --lenient)" : "valid JSON") + ": " + JsonOps.describe(root) + ".");
+                    return OK;
+                }
+                case "format": {
+                    Object v = o.flags().contains("--sort-keys") ? JsonOps.sortKeys(root) : root;
+                    emit(render(v, o), o, out);
+                    return OK;
+                }
+                case "get": {
+                    List<JsonPath.Match> m = selectOrUsage(root, path);
+                    if (m.isEmpty()) {
+                        err.println("No value found at path '" + path + "'. Run 'casc-generator json keys --input " + inputs.get(0) + "' to see what exists, or check the spelling (keys are case-sensitive).");
+                        return INVALID;
+                    }
+                    Object result;
+                    if (o.flags().contains("--with-paths")) {
+                        Map<String, Object> mp = new LinkedHashMap<>();
+                        for (JsonPath.Match x : m) {
+                            mp.put(x.path(), x.value());
+                        }
+                        result = mp;
+                    } else if (m.size() == 1) {
+                        result = m.get(0).value();
+                    } else {
+                        List<Object> vals = new ArrayList<>();
+                        for (JsonPath.Match x : m) {
+                            vals.add(x.value());
+                        }
+                        result = vals;
+                    }
+                    emit(render(result, o), o, out);
+                    if (m.size() > 1 && o.get("--output", null) == null) {
+                        err.println(m.size() + " matches, printed as an array" + (o.flags().contains("--with-paths") ? "" : " (add --with-paths to see where each came from)") + ".");
+                    }
+                    return OK;
+                }
+                case "keys": {
+                    List<JsonPath.Match> m = selectOrUsage(root, path);
+                    if (m.isEmpty()) {
+                        err.println("No value found at path '" + path + "'.");
+                        return INVALID;
+                    }
+                    for (JsonPath.Match x : m) {
+                        out.println(x.path() + ": " + JsonOps.describe(x.value()));
+                        if (x.value() instanceof Map<?, ?> mp) {
+                            for (Map.Entry<?, ?> e : mp.entrySet()) {
+                                out.println("  " + e.getKey() + "  (" + JsonOps.describe(e.getValue()) + ")");
+                            }
+                        } else if (x.value() instanceof List<?> l && !l.isEmpty()) {
+                            Map<String, Integer> kinds = new LinkedHashMap<>();
+                            java.util.Set<String> keys = new java.util.LinkedHashSet<>();
+                            for (Object item : l) {
+                                kinds.merge(JsonOps.type(item), 1, Integer::sum);
+                                if (item instanceof Map<?, ?> im) {
+                                    im.keySet().forEach(k -> keys.add(String.valueOf(k)));
+                                }
+                            }
+                            out.println("  items: " + kinds.toString().replace("{", "").replace("}", "").replace("=", " x"));
+                            if (!keys.isEmpty()) {
+                                out.println("  item keys: " + String.join(", ", keys.stream().limit(40).toList()) + (keys.size() > 40 ? ", ..." : ""));
+                            }
+                        }
+                    }
+                    return OK;
+                }
+                case "stats": {
+                    List<JsonPath.Match> m = selectOrUsage(root, path);
+                    if (m.isEmpty()) {
+                        err.println("No value found at path '" + path + "'.");
+                        return INVALID;
+                    }
+                    for (JsonPath.Match x : m) {
+                        JsonOps.Stats st = JsonOps.stats(x.value());
+                        out.println(x.path() + ": " + JsonOps.describe(x.value()));
+                        out.println("  values " + st.nodes() + ", objects " + st.objects() + ", arrays " + st.arrays() + ", strings " + st.strings() + ", numbers " + st.numbers()
+                                + ", booleans " + st.booleans() + ", nulls " + st.nulls() + ", depth " + st.maxDepth());
+                    }
+                    return OK;
+                }
+                case "flatten": {
+                    StringBuilder b = new StringBuilder();
+                    for (JsonPath.Match x : selectOrUsage(root, path)) {
+                        for (JsonPath.Match leaf : JsonOps.flatten(x.value(), x.path())) {
+                            b.append(leaf.path()).append(" = ").append(Json.writeCompact(leaf.value())).append("\n");
+                        }
+                    }
+                    emit(b.toString(), o, out);
+                    return OK;
+                }
+                case "csv": {
+                    List<JsonPath.Match> m = selectOrUsage(root, path);
+                    if (m.size() != 1) {
+                        err.println(m.isEmpty() ? "No value found at path '" + path + "'." : "csv needs a path that selects one array of objects; '" + path + "' selects " + m.size() + " values.");
+                        return INVALID;
+                    }
+                    try {
+                        emit(JsonOps.csv(m.get(0).value()), o, out);
+                    } catch (IllegalArgumentException e) {
+                        err.println("Error: " + e.getMessage());
+                        return INVALID;
+                    }
+                    return OK;
+                }
+                case "find": {
+                    String text = o.get("--text", null);
+                    if (text == null || text.isEmpty()) {
+                        throw new UsageException("json find needs --text TEXT.");
+                    }
+                    int max = o.get("--max", null) == null ? 200 : number(o.get("--max", null), "--max", 1, 100000);
+                    List<JsonOps.Found> found = JsonOps.find(root, text, max);
+                    for (JsonOps.Found f : found) {
+                        String t = f.text().length() > 100 ? f.text().substring(0, 100) + "..." : f.text();
+                        out.println(f.path() + "   (" + f.where() + ")   " + t);
+                    }
+                    out.println(found.isEmpty() ? "No key or value contains '" + text + "'." : found.size() + " match(es)" + (found.size() >= max ? " (stopped at --max " + max + ")" : "") + ".");
+                    return OK;
+                }
+                case "set":
+                case "delete": {
+                    if (path == null || path.isBlank()) {
+                        throw new UsageException("json " + op + " needs --path P.");
+                    }
+                    JsonOps.Change c;
+                    try {
+                        if (op.equals("set")) {
+                            String raw = o.get("--value", null);
+                            if (raw == null) {
+                                throw new UsageException("json set needs --value JSON (text must be quoted, for example --value '\"Account ID\"').");
+                            }
+                            Object value;
+                            try {
+                                value = Json.parse(raw);
+                            } catch (JsonException e) {
+                                value = raw;      // not JSON: use it as plain text
+                            }
+                            c = JsonOps.set(root, path, value);
+                        } else {
+                            c = JsonOps.delete(root, path);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        throw new UsageException("Bad --path '" + path + "': " + e.getMessage());
+                    }
+                    if (c.changes() == 0) {
+                        err.println("Nothing was changed: the path '" + path + "' selected nothing. Run 'casc-generator json keys --input " + inputs.get(0) + "' to see what exists.");
+                        return INVALID;
+                    }
+                    Object result = o.flags().contains("--sort-keys") ? JsonOps.sortKeys(c.root()) : c.root();
+                    emit(render(result, o), o, out);
+                    (o.get("--output", null) == null ? err : out).println(c.changes() + " change(s) made" + (o.get("--output", null) == null ? " (printed above; add --output FILE to save)." : "."));
+                    return OK;
+                }
+                default:
+                    throw new UsageException("Unknown json operation '" + op + "'.");
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+    }
+
+    /** compare --input FILE_OR_DIR ... --output REPORT.html */
+    private static int compare(Opts o, PrintStream out, PrintStream err) throws UsageException {
+        String html = o.get("--output", null);
+        String jsonOut = o.get("--json-output", null);
+        if (html == null && jsonOut == null) {
+            throw new UsageException("compare needs --output REPORT.html (the report) and/or --json-output FILE.");
+        }
+        boolean lenient = o.flags().contains("--lenient");
+        String section = o.get("--path", null);
+        if (section != null) {
+            try {
+                JsonPath.check(section);
+            } catch (IllegalArgumentException e) {
+                throw new UsageException("Bad --path '" + section + "': " + e.getMessage());
+            }
+        }
+        List<String> keyFields = new ArrayList<>();
+        if (o.get("--key", null) != null) {
+            for (String k : o.get("--key", null).split(",")) {
+                if (!k.isBlank()) {
+                    keyFields.add(k.trim());
+                }
+            }
+        }
+        int maxRows = o.get("--max-rows", null) == null ? 5000 : number(o.get("--max-rows", null), "--max-rows", 1, 1_000_000);
+        List<Path> files = new ArrayList<>();
+        try {
+            for (String in : o.all("--input")) {
+                Path p = Path.of(in);
+                if (Files.isDirectory(p)) {
+                    try (java.util.stream.Stream<Path> s = Files.list(p)) {
+                        files.addAll(s.filter(Files::isRegularFile).filter(f -> f.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".json")).sorted().toList());
+                    }
+                } else {
+                    files.add(p);
+                }
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        if (files.size() < 2) {
+            throw new UsageException("compare needs at least two JSON files (give --input twice, or a folder that holds several .json files). Found " + files.size() + ".");
+        }
+        Set<String> used = new HashSet<>();
+        List<JsonCompare.Source> sources = new ArrayList<>();
+        try {
+            for (Path f : files) {
+                Loaded l = loadJson(f.toString(), lenient);
+                Object root = l.root();
+                if (section != null) {
+                    List<JsonPath.Match> m = selectOrUsage(root, section);
+                    if (m.isEmpty()) {
+                        err.println("Error: " + f + " has nothing at --path '" + section + "'. Run 'casc-generator json keys --input " + f + "' to see what exists.");
+                        return INVALID;
+                    }
+                    if (m.size() == 1) {
+                        root = m.get(0).value();
+                    } else {
+                        List<Object> vals = new ArrayList<>();
+                        for (JsonPath.Match x : m) {
+                            vals.add(x.value());
+                        }
+                        root = vals;
+                    }
+                }
+                String name = f.getFileName().toString();
+                if (!used.add(name)) {
+                    name = f.toString();
+                    used.add(name);
+                }
+                sources.add(new JsonCompare.Source(name, root, l.bytes()));
+                if (l.lenient()) {
+                    err.println("Note: " + f + " is not strictly valid JSON; it was read leniently.");
+                }
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        JsonCompare.Report r = JsonCompare.compare(sources, keyFields, maxRows, section);
+        out.println("Compared " + sources.size() + " files (baseline: " + sources.get(0).name() + ")");
+        for (int i = 1; i < r.files().size(); i++) {
+            JsonCompare.FileSummary f = r.files().get(i);
+            out.println("  " + f.name() + ": " + f.added() + " added, " + f.removed() + " removed, " + f.changed() + " changed, " + f.same() + " same");
+        }
+        out.println(r.differing() + " of " + r.totalPaths() + " values differ somewhere; " + r.identical() + " are identical in every file.");
+        try {
+            if (html != null) {
+                String generated = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                writeAtomically(Path.of(html), HtmlReport.render(r, o.get("--title", "JSON comparison"), generated), o.flags().contains("--overwrite"));
+                out.println("Wrote HTML report to " + Path.of(html).toAbsolutePath());
+            }
+            if (jsonOut != null) {
+                writeAtomically(Path.of(jsonOut), HtmlReport.toJson(r), o.flags().contains("--overwrite"));
+                out.println("Wrote JSON report to " + Path.of(jsonOut).toAbsolutePath());
+            }
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        return o.flags().contains("--fail-on-diff") && r.differing() > 0 ? INVALID : OK;
     }
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {

@@ -19,6 +19,7 @@ public final class TestRunner {
         ToolTests.register();
         SkillFileTests.register();
         FindingGuideTests.register();
+        JsonToolsTests.register();
         FuzzTests.register();
         AccessTests.register();
         AccessAudit.register();

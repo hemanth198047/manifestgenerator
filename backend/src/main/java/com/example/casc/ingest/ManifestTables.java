@@ -128,14 +128,6 @@ public final class ManifestTables {
 
         record Failure(String message) {}
 
-        private final String s;
-        private int i;
-
-        private Lenient(String s, int start) {
-            this.s = s;
-            this.i = start;
-        }
-
         static Object databases(String text) {
             String t = text.startsWith("\uFEFF") ? text.substring(1) : text;
             int start = findTopLevelKey(t, "databases");
@@ -143,8 +135,7 @@ public final class ManifestTables {
                 return MISSING;
             }
             try {
-                Lenient p = new Lenient(t, start);
-                return p.value(0);
+                return com.example.casc.json.LenientJson.parseAt(t, start);
             } catch (IllegalArgumentException e) {
                 return new Failure(e.getMessage());
             }
@@ -191,120 +182,6 @@ public final class ManifestTables {
                 }
             }
             return -1;
-        }
-
-        private void ws() {
-            while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
-                i++;
-            }
-        }
-
-        private Object value(int depth) {
-            if (depth > 64) {
-                throw new IllegalArgumentException("nesting is too deep");
-            }
-            ws();
-            if (i >= s.length()) {
-                throw new IllegalArgumentException("unexpected end of text");
-            }
-            char c = s.charAt(i);
-            if (c == '{') {
-                i++;
-                Map<String, Object> m = new LinkedHashMap<>();
-                while (true) {
-                    ws();
-                    if (i >= s.length()) {
-                        throw new IllegalArgumentException("unterminated object");
-                    }
-                    if (s.charAt(i) == '}') {
-                        i++;
-                        return m;
-                    }
-                    if (s.charAt(i) == ',') {
-                        i++;
-                        continue;
-                    }
-                    if (s.charAt(i) != '"') {
-                        throw new IllegalArgumentException("expected a property name at offset " + i);
-                    }
-                    String k = string();
-                    ws();
-                    if (i >= s.length() || s.charAt(i) != ':') {
-                        throw new IllegalArgumentException("expected ':' after \"" + k + "\"");
-                    }
-                    i++;
-                    m.put(k, value(depth + 1));
-                }
-            }
-            if (c == '[') {
-                i++;
-                List<Object> l = new ArrayList<>();
-                while (true) {
-                    ws();
-                    if (i >= s.length()) {
-                        throw new IllegalArgumentException("unterminated array");
-                    }
-                    if (s.charAt(i) == ']') {
-                        i++;
-                        return l;
-                    }
-                    if (s.charAt(i) == ',') {
-                        i++;
-                        continue;
-                    }
-                    l.add(value(depth + 1));
-                }
-            }
-            if (c == '"') {
-                return string();
-            }
-            int st = i;
-            while (i < s.length() && ",]}".indexOf(s.charAt(i)) < 0 && !Character.isWhitespace(s.charAt(i))) {
-                i++;
-            }
-            String w = s.substring(st, i);
-            switch (w) {
-                case "true": return Boolean.TRUE;
-                case "false": return Boolean.FALSE;
-                case "null": return null;
-                default:
-                    try {
-                        return Long.parseLong(w);
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("unexpected '" + w + "' at offset " + st);
-                    }
-            }
-        }
-
-        private String string() {
-            i++;
-            StringBuilder b = new StringBuilder();
-            while (i < s.length()) {
-                char c = s.charAt(i++);
-                if (c == '"') {
-                    return b.toString();
-                }
-                if (c == '\\' && i < s.length()) {
-                    char e = s.charAt(i++);
-                    switch (e) {
-                        case 'n': b.append('\n'); break;
-                        case 't': b.append('\t'); break;
-                        case 'r': b.append('\r'); break;
-                        case 'b': b.append('\b'); break;
-                        case 'f': b.append('\f'); break;
-                        case 'u':
-                            if (i + 4 <= s.length()) {
-                                b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
-                                i += 4;
-                            }
-                            break;
-                        default: b.append(e);
-                    }
-                } else {
-                    b.append(c);
-                }
-            }
-            throw new IllegalArgumentException("unterminated string");
         }
     }
 }
