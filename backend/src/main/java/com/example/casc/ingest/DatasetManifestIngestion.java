@@ -148,6 +148,9 @@ public final class DatasetManifestIngestion {
             findings.add(Finding.info("TABLE_WITHOUT_METADATA", sourceName, skipped + " table(s) in " + sourceName + " have no row in "
                     + metadataCsv.name() + " and were not generated.", "If those tables need a dataset manifest, add a row for each to the metadata CSV and run again with --overwrite. Otherwise nothing to do."));
         }
+        findings.add(Finding.info("DATASET_SUMMARY", sourceName, "Read " + allTables.size() + " table(s) from " + sourceName + "; " + metadataCsv.name() + " has "
+                + meta.rows().size() + " row(s); generated " + out.size() + " dataset manifest(s). Only tables that have a metadata row are generated.",
+                "If fewer manifests were generated than you expected, check the warnings above: rows that match no table, duplicate rows, and tables without a row."));
         if (out.isEmpty()) {
             findings.add(Finding.error("NO_TABLES_MATCHED", metadataCsv.name(), "No table in the metadata file matches a table in the manifest.",
                     "Check the table names in both files."));

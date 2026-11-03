@@ -153,6 +153,26 @@ public final class DatasetManifestTests {
                     IngestOptions.defaults(), null, SourceInput.of("c.csv", "table name,column name\nTAPSAccount,accountID\n"));
             yes(has(bad, "COLUMN_METADATA_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs all three columns");
         });
+        test("datasets: all tables of a large manifest are read; only tables with a metadata row are generated, and the summary says so", () -> {
+            StringBuilder m = new StringBuilder("{\"databases\":[{\"schemas\":[{\"physicalName\":\"s\",\"tables\":[");
+            StringBuilder c = new StringBuilder("table name,domain,boundary,upstream dataset,producer eonid\n");
+            for (int i = 0; i < 694; i++) {
+                m.append(i > 0 ? "," : "").append("{\"physicalName\":\"T").append(i).append("\",\"columns\":[{\"physicalName\":\"c\"}]}");
+                if (i < 91) {
+                    c.append("T").append(i).append(",Account,Firmwide,a2.dbo.T").append(i).append(",3212\n");
+                }
+            }
+            m.append(",{\"columns\":[]}]}]}]}");
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", m.toString()), SourceInput.of("t.csv", c.toString()));
+            eq(91, r.manifests().size());
+            yes(r.findings().stream().anyMatch(f -> f.code().equals("DATASET_SUMMARY") && f.message().contains("Read 694 table(s)") && f.message().contains("has 91 row(s)")), "summary");
+            yes(has(r, "TABLE_WITHOUT_METADATA") && has(r, "MANIFEST_TABLE_SKIPPED"), "skipped tables are reported");
+            var all = new StringBuilder("table name,domain,boundary,upstream dataset,producer eonid\n");
+            for (int i = 0; i < 694; i++) {
+                all.append("T").append(i).append(",Account,Firmwide,a2.dbo.T").append(i).append(",3212\n");
+            }
+            eq(694, DatasetManifestIngestion.generate(SourceInput.of("m.json", m.toString()), SourceInput.of("t.csv", all.toString())).manifests().size());
+        });
         test("datasets: the CLI accepts --column-metadata", () -> {
             Path dir = tempDir("casc-datasets-cols");
             try {

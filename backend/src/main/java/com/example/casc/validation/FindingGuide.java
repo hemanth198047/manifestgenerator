@@ -93,6 +93,10 @@ public final class FindingGuide {
           "A table in the SQL has no schema (it is not written as schema.table) and no default schema was given, so its dataset is named with the table name only.",
           "Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.",
           "docs/INGESTION.md (Dataset manifests per table)");
+        e("DATASET_SUMMARY", "Summary of a dataset-manifest run",
+          "How many tables were read from the source, how many rows the metadata CSV has and how many manifests were generated. Only tables that have a metadata row are generated, so the number generated is at most the number of metadata rows.",
+          "If fewer manifests were generated than expected, read the warnings above it: rows that match no table, duplicate rows, tables without a row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("DATASET_VIEW_SKIPPED", "SQL views not mapped",
           "Only tables get a dataset manifest; CREATE VIEW statements were skipped.",
           "Nothing to do unless a view needs a dataset manifest.",
@@ -240,6 +244,10 @@ public final class FindingGuide {
         e("MANIFEST_SYNTAX", "Manifest is not valid JSON",
           "The file has JSON syntax errors and its `databases` section could not be located, so no tables were read.",
           "Fix the JSON syntax (the message gives the position), then run again.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("MANIFEST_TABLE_SKIPPED", "Table entries without a physicalName",
+          "Some entries under tables[] have no physicalName, so they could not be read and no dataset manifest can be made for them. The message gives the position of the first one.",
+          "Add physicalName to those entries.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("MANIFEST_UNREADABLE", "Manifest file has no text",
           "The manifest could not be read (empty or not valid UTF-8).",

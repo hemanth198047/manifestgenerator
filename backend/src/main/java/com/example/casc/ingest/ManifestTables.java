@@ -59,18 +59,30 @@ public final class ManifestTables {
             return new Result(List.of(), findings);
         }
         List<Table> out = new ArrayList<>();
+        int noName = 0;
+        String firstNoName = null;
+        int dbIdx = -1;
         for (Object d : dbs) {
+            dbIdx++;
             if (!(d instanceof Map<?, ?> db)) {
                 continue;
             }
             String dbName = text(db.get("logicalName"));
+            int scIdx = -1;
             for (Object s : list(db.get("schemas"))) {
+                scIdx++;
                 if (!(s instanceof Map<?, ?> sc)) {
                     continue;
                 }
                 String schema = text(sc.get("physicalName"));
+                int tIdx = -1;
                 for (Object t : list(sc.get("tables"))) {
+                    tIdx++;
                     if (!(t instanceof Map<?, ?> tb) || text(tb.get("physicalName")) == null) {
+                        noName++;
+                        if (firstNoName == null) {
+                            firstNoName = "databases[" + dbIdx + "].schemas[" + scIdx + "].tables[" + tIdx + "]";
+                        }
                         continue;
                     }
                     List<Column> cols = new ArrayList<>();
@@ -82,6 +94,11 @@ public final class ManifestTables {
                     out.add(new Table(dbName, schema, text(tb.get("physicalName")), text(tb.get("description")), cols));
                 }
             }
+        }
+        if (noName > 0) {
+            findings.add(Finding.warning("MANIFEST_TABLE_SKIPPED", in.name() + ":" + firstNoName, noName + " table entr" + (noName == 1 ? "y has" : "ies have")
+                    + " no physicalName and were skipped (the first is at " + firstNoName + "). A table is only read when it has a physicalName.",
+                    "Add physicalName to those table entries (the tool reads databases[].schemas[].tables[].physicalName)."));
         }
         if (out.isEmpty()) {
             findings.add(Finding.error("MANIFEST_NO_TABLES", in.name(), "The \"databases\" section contains no tables.", "Add tables under databases[].schemas[].tables[]."));

@@ -152,6 +152,14 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
+## DATASET_SUMMARY
+
+**Summary of a dataset-manifest run**
+
+- **What it means:** How many tables were read from the source, how many rows the metadata CSV has and how many manifests were generated. Only tables that have a metadata row are generated, so the number generated is at most the number of metadata rows.
+- **How to fix it:** If fewer manifests were generated than expected, read the warnings above it: rows that match no table, duplicate rows, tables without a row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## DATASET_VIEW_SKIPPED
 
 **SQL views not mapped**
@@ -446,6 +454,14 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 
 - **What it means:** The file has JSON syntax errors and its `databases` section could not be located, so no tables were read.
 - **How to fix it:** Fix the JSON syntax (the message gives the position), then run again.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## MANIFEST_TABLE_SKIPPED
+
+**Table entries without a physicalName**
+
+- **What it means:** Some entries under tables[] have no physicalName, so they could not be read and no dataset manifest can be made for them. The message gives the position of the first one.
+- **How to fix it:** Add physicalName to those entries.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## MANIFEST_UNREADABLE
