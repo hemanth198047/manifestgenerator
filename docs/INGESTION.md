@@ -124,3 +124,11 @@ Rows that match no table or column are reported (`COLUMN_METADATA_NOT_FOUND`); d
   `eucOrManualProcess` = `{}`, `originatingCatalogingSource` = `FDC`.
 - A metadata row whose table is not in the manifest is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a manifest table without a row is not generated (info `TABLE_WITHOUT_METADATA`).
   Errors (missing metadata columns, no tables, unreadable files) write nothing. Examples: `infrastructure/integrations/examples/datasets/`.
+
+## Combining dataset manifests
+Merge the `datasets` of several dataset manifests into one manifest (`{"datasets": [ ... ]}`), either afterwards or while generating.
+- **Afterwards:** `combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`. A directory contributes its `.json` files (sorted by name; the output file itself is skipped).
+- **While generating:** add `--combine-output FILE` to `ingest --manifest-input/--sql-input ...`; add `--combined-only` to skip the per-table files. `--combine-count` and `--combine-tables` work as below.
+- **Which datasets:** all by default. `--count N` (`--combine-count N` with ingest) takes the first N datasets in input order. `--tables A,B` (`--combine-tables`) takes only the named tables (table name or `schema.table`, case ignored). Use one of the two, not both.
+- A dataset name that is already in the result is not added twice (`COMBINE_DUPLICATE_DATASET`); files without `datasets` are skipped (`COMBINE_FILE_SKIPPED`); other top-level fields are not carried over (`COMBINE_FIELD_DROPPED`); the last info line (`COMBINE_SUMMARY`) says how many were read and combined.
+- The command refuses to replace an existing output file unless `--overwrite` is given. Nothing is written when there is an error.

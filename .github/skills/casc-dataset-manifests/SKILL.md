@@ -15,7 +15,8 @@ description: Creates one dataset manifest per table (datasets, boundaries, data 
 2. **The table metadata CSV.** Header `table name, domain, boundary, upstream dataset, producer eonid`; one row per table that needs a dataset manifest. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary.
 3. **Do the tables have upstream datasets?** If not, use `--no-upstream`: no `upstreamDatasets` is written and the CSV needs only `table name, domain, boundary`.
 4. **Are the system data elements known?** A manifest JSON carries a `systemDataElement` per column. SQL does not, so offer an external column metadata CSV with the header `table name, column name, system data element` (`--column-metadata`). It also replaces a manifest's own value for the columns it lists.
-5. The output directory, and whether files already there may be replaced (`--overwrite`; without it the command refuses to overwrite).
+5. Whether they also want everything (or only some datasets) combined into one manifest.
+6. The output directory, and whether files already there may be replaced (`--overwrite`; without it the command refuses to overwrite).
 
 ## Command
 `run-cli ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [--column-metadata COLUMNS.csv] [--no-upstream] [--overwrite]`
@@ -39,6 +40,9 @@ or, with the tables read from SQL:
 4. If the command reports errors, say what each one means and how to fix the input; run again after the user fixes it (with `--overwrite` if files were already written). Never edit the user's inputs yourself.
 5. Each generated file holds one `datasets` entry: `name` (`schema.table`), `format` ResultSet, `boundaries`, `dgcDataDomains`, `upstreamDatasets` (name and `producerEonId`; absent with `--no-upstream`),
    `datasetElements` (`name`, `description`, and `systemDataElements` when a system data element is known for the column), `eucOrManualProcess`, `originatingCatalogingSource`.
+
+## Combining into one manifest
+To get a single manifest holding the datasets, add `--combine-output COMBINED.json` to the same command (`--combined-only` skips the per-table files). Choose which datasets: all (default), only the first N (`--combine-count N`), or only named tables (`--combine-tables A,B`). Already generated files can be combined afterwards with the `combine` command (see the `casc-combine-datasets` skill).
 
 ### Validating the generated files
 `run-cli validate` on a generated dataset manifest reports `UNKNOWN_FIELD` for `datasets`. That is expected (dataset manifests are outside the CasC model); explain it with `run-cli explain UNKNOWN_FIELD`. Never run `export` on these files: it would drop `datasets`.

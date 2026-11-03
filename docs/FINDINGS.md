@@ -96,6 +96,62 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Fix the file and run again.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
+## COMBINE_DUPLICATE_DATASET
+
+**Dataset appears twice**
+
+- **What it means:** A dataset with the same name was already added, so this copy was left out.
+- **How to fix it:** Remove the duplicate from the input, or check that the files are really different tables.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_FIELD_DROPPED
+
+**Other top-level fields left out**
+
+- **What it means:** The combined manifest holds only "datasets"; any other top-level field of the input files is not carried over.
+- **How to fix it:** If you need it, add it to the combined file by hand.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_FILE_SKIPPED
+
+**File without datasets skipped**
+
+- **What it means:** The file has no "datasets" section with entries, so nothing was taken from it.
+- **How to fix it:** Give dataset manifests only, such as the manifest_<table>.json files.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_FILE_UNREADABLE
+
+**A file to combine could not be read**
+
+- **What it means:** A dataset manifest file is missing, too large or not valid JSON, so nothing was combined.
+- **How to fix it:** Fix or remove that file and run again.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_NOTHING_SELECTED
+
+**No datasets selected**
+
+- **What it means:** Nothing matched the input and the selection, so nothing was written.
+- **How to fix it:** Check the input files and the count or table names.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_SUMMARY
+
+**Summary of a combine run**
+
+- **What it means:** How many datasets were read, from how many files, and how many were combined (all, the first N, or the named tables).
+- **How to fix it:** None needed.
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
+## COMBINE_TABLE_NOT_FOUND
+
+**Requested table not found**
+
+- **What it means:** A table named in --tables has no dataset in the input, so it is not in the combined manifest.
+- **How to fix it:** Check the spelling (matching ignores case; use the table name or schema.table).
+- **Where to look:** docs/INGESTION.md (Combining dataset manifests)
+
 ## CSV_BLANK_HEADER
 
 **A column header is blank**

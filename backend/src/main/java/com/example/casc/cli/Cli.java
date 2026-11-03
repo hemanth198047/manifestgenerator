@@ -11,6 +11,7 @@ import com.example.casc.app.ExportService;
 import com.example.casc.domain.Enums;
 import com.example.casc.domain.Enums.DatabaseType;
 import com.example.casc.domain.Enums.InterfaceType;
+import com.example.casc.ingest.DatasetManifestCombiner;
 import com.example.casc.ingest.DatasetManifestIngestion;
 import com.example.casc.ingest.DraftBuilder;
 import com.example.casc.ingest.IngestOptions;
@@ -157,8 +158,11 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output"),
-                            Set.of("--no-header", "--overwrite", "--json", "--url-allow-http", "--no-upstream")), out, err);
+                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output",
+                            "--combine-output", "--combine-count", "--combine-tables"),
+                            Set.of("--no-header", "--overwrite", "--json", "--url-allow-http", "--no-upstream", "--combined-only")), out, err);
+                case "combine":
+                    return combine(parse(args, 1, Set.of("--input", "--output", "--count", "--tables"), Set.of("--overwrite")), out, err);
                 case "explain":
                     return explain(args.length > 1 ? args[1] : null, out, err);
                 case "tools":
@@ -199,6 +203,8 @@ public final class Cli {
         p.println("  ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]   write one dataset manifest per table");
         p.println("  ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]");
         p.println("         the same, with the tables read from SQL DDL instead of a manifest JSON");
+        p.println("         add --combine-output FILE to also write all (or --combine-count N / --combine-tables A,B,...) datasets into one manifest; --combined-only skips the per-table files");
+        p.println("  combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]   combine dataset manifests into one");
         p.println("         add --no-upstream when the tables have no upstream datasets (no upstreamDatasets are written; the metadata needs no upstream columns)");
         p.println("         add --column-metadata FILE (table name, column name, system data element) to supply systemDataElements for columns from outside the source");
         p.println("         (tables come from the manifest's databases section; domain, boundary, upstream dataset and producer EON ID from the metadata CSV)");
@@ -379,6 +385,11 @@ public final class Cli {
         if (meta == null || dir == null) {
             throw new UsageException("--table-metadata FILE and --dataset-output DIR are required with --manifest-input or --sql-input.");
         }
+        String combineOut = o.get("--combine-output", null);
+        if (combineOut == null && (o.get("--combine-count", null) != null || o.get("--combine-tables", null) != null || o.flags().contains("--combined-only"))) {
+            throw new UsageException("--combine-count, --combine-tables and --combined-only need --combine-output FILE.");
+        }
+        DatasetManifestCombiner.Selection selection = selection(o);
         DatasetManifestIngestion.Result r;
         try {
             SourceInput columns = o.get("--column-metadata", null) == null ? null : readSource(o.get("--column-metadata", null));
@@ -415,15 +426,112 @@ public final class Cli {
             if (!Files.isDirectory(target)) {
                 Files.createDirectories(target);
             }
-            for (DatasetManifestIngestion.Generated g : r.manifests()) {
-                writeAtomically(target.resolve(g.fileName()), g.content(), o.flags().contains("--overwrite"));
-                out.println("Wrote " + g.fileName() + " (table " + g.table() + ")");
+            if (combineOut != null) {
+                List<SourceInput> parts = new ArrayList<>();
+                for (DatasetManifestIngestion.Generated g : r.manifests()) {
+                    parts.add(SourceInput.of(g.fileName(), g.content()));
+                }
+                DatasetManifestCombiner.Result c = DatasetManifestCombiner.combine(parts, selection);
+                printReport(new ValidationReport(c.findings()), c.hasErrors() ? err : out);
+                if (c.hasErrors()) {
+                    err.println("Nothing was written.");
+                    return INVALID;
+                }
+                if (!o.flags().contains("--combined-only")) {
+                    writeIndividual(r, target, o, out);
+                }
+                writeAtomically(Path.of(combineOut), c.content(), o.flags().contains("--overwrite"));
+                out.println("Wrote " + c.datasets() + " dataset(s) combined into " + Path.of(combineOut).toAbsolutePath());
+                return OK;
+            }
+            writeIndividual(r, target, o, out);
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        return OK;
+    }
+
+    private static void writeIndividual(DatasetManifestIngestion.Result r, Path target, Opts o, PrintStream out) throws IOException {
+        for (DatasetManifestIngestion.Generated g : r.manifests()) {
+            writeAtomically(target.resolve(g.fileName()), g.content(), o.flags().contains("--overwrite"));
+            out.println("Wrote " + g.fileName() + " (table " + g.table() + ")");
+        }
+        out.println("Wrote " + r.manifests().size() + " dataset manifest(s) to " + target);
+    }
+
+    /** All datasets, the first --count N, or the tables named in --tables A,B (one of the two at most). */
+    private static DatasetManifestCombiner.Selection selection(Opts o) throws UsageException {
+        String count = o.get("--combine-count", null) != null ? o.get("--combine-count", null) : o.get("--count", null);
+        String tables = o.get(o.get("--combine-tables", null) != null ? "--combine-tables" : "--tables", null);
+        if (count != null && tables != null) {
+            throw new UsageException("Use either a count (the first N datasets) or a list of tables, not both.");
+        }
+        if (count != null) {
+            return new DatasetManifestCombiner.Selection(number(count, "--count", 1, 1_000_000), null);
+        }
+        if (tables != null) {
+            List<String> names = new ArrayList<>();
+            for (String t : tables.split(",")) {
+                if (!t.isBlank()) {
+                    names.add(t.trim());
+                }
+            }
+            if (names.isEmpty()) {
+                throw new UsageException("--tables needs at least one table name, separated by commas.");
+            }
+            return new DatasetManifestCombiner.Selection(null, names);
+        }
+        return DatasetManifestCombiner.Selection.all();
+    }
+
+    /** combine --input FILE_OR_DIR ... --output FILE: one manifest from several dataset manifests. */
+    private static int combine(Opts o, PrintStream out, PrintStream err) throws UsageException {
+        List<String> inputs = o.all("--input");
+        String output = o.get("--output", null);
+        if (inputs.isEmpty() || output == null) {
+            throw new UsageException("combine needs --input FILE_OR_DIR (repeatable) and --output FILE.");
+        }
+        DatasetManifestCombiner.Selection selection = selection(o);
+        Path outPath = Path.of(output).toAbsolutePath();
+        List<SourceInput> parts = new ArrayList<>();
+        try {
+            for (String in : inputs) {
+                Path p = Path.of(in);
+                if (Files.isDirectory(p)) {
+                    List<Path> files;
+                    try (java.util.stream.Stream<Path> s = Files.list(p)) {
+                        files = s.filter(Files::isRegularFile).filter(f -> f.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".json"))
+                                .filter(f -> !f.toAbsolutePath().equals(outPath)).sorted().toList();
+                    }
+                    for (Path f : files) {
+                        parts.add(readSource(f.toString()));
+                    }
+                } else {
+                    parts.add(readSource(in));
+                }
             }
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
             return IO;
         }
-        out.println("Wrote " + r.manifests().size() + " dataset manifest(s) to " + target);
+        if (parts.isEmpty()) {
+            err.println("Error: no .json files were found in the input.");
+            return INVALID;
+        }
+        DatasetManifestCombiner.Result c = DatasetManifestCombiner.combine(parts, selection);
+        printReport(new ValidationReport(c.findings()), c.hasErrors() ? err : out);
+        if (c.hasErrors()) {
+            err.println("Nothing was written.");
+            return INVALID;
+        }
+        try {
+            writeAtomically(outPath, c.content(), o.flags().contains("--overwrite"));
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
+        out.println("Wrote " + c.datasets() + " dataset(s) combined into " + outPath);
         return OK;
     }
 

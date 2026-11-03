@@ -65,6 +65,34 @@ public final class FindingGuide {
           "The optional column metadata file (system data element per column) could not be read or has no rows.",
           "Fix the file and run again.",
           "docs/INGESTION.md (Dataset manifests per table)");
+        e("COMBINE_DUPLICATE_DATASET", "Dataset appears twice",
+          "A dataset with the same name was already added, so this copy was left out.",
+          "Remove the duplicate from the input, or check that the files are really different tables.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_FIELD_DROPPED", "Other top-level fields left out",
+          "The combined manifest holds only \"datasets\"; any other top-level field of the input files is not carried over.",
+          "If you need it, add it to the combined file by hand.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_FILE_SKIPPED", "File without datasets skipped",
+          "The file has no \"datasets\" section with entries, so nothing was taken from it.",
+          "Give dataset manifests only, such as the manifest_<table>.json files.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_FILE_UNREADABLE", "A file to combine could not be read",
+          "A dataset manifest file is missing, too large or not valid JSON, so nothing was combined.",
+          "Fix or remove that file and run again.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_NOTHING_SELECTED", "No datasets selected",
+          "Nothing matched the input and the selection, so nothing was written.",
+          "Check the input files and the count or table names.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_SUMMARY", "Summary of a combine run",
+          "How many datasets were read, from how many files, and how many were combined (all, the first N, or the named tables).",
+          "None needed.",
+          "docs/INGESTION.md (Combining dataset manifests)");
+        e("COMBINE_TABLE_NOT_FOUND", "Requested table not found",
+          "A table named in --tables has no dataset in the input, so it is not in the combined manifest.",
+          "Check the spelling (matching ignores case; use the table name or schema.table).",
+          "docs/INGESTION.md (Combining dataset manifests)");
         e("CSV_BLANK_HEADER", "A column header is blank",
           "A header cell is empty, so the tool named it automatically.",
           "Give the column a name in the source file.",

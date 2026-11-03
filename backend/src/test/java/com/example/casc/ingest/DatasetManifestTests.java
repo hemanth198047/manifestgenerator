@@ -64,6 +64,10 @@ public final class DatasetManifestTests {
         return (Map<String, Object>) ((List<Object>) root.get("datasets")).get(0);
     }
 
+    static boolean has2(DatasetManifestCombiner.Result r, String code) {
+        return r.findings().stream().anyMatch(f -> f.code().equals(code));
+    }
+
     static boolean has(DatasetManifestIngestion.Result r, String code) {
         return r.findings().stream().anyMatch(f -> f.code().equals(code));
     }
@@ -186,6 +190,74 @@ public final class DatasetManifestTests {
             var full = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", CSV), null, false);
             yes(!dataset(full.manifests().get(0)).containsKey("upstreamDatasets"), "also omitted when the CSV has upstream columns");
             yes(!has(full, "METADATA_VALUE_MISSING"), "no upstream warnings");
+        });
+        test("combine: all datasets, the first N, or the named tables go into one manifest; duplicates and bad input are reported", () -> {
+            StringBuilder csv = new StringBuilder("table name,domain,boundary\n");
+            StringBuilder m = new StringBuilder("{\"databases\":[{\"schemas\":[{\"physicalName\":\"s\",\"tables\":[");
+            for (int i = 0; i < 5; i++) {
+                csv.append("T").append(i).append(",Account,Firmwide\n");
+                m.append(i > 0 ? "," : "").append("{\"physicalName\":\"T").append(i).append("\",\"columns\":[{\"physicalName\":\"c\"}]}");
+            }
+            m.append("]}]}]}");
+            var gen = DatasetManifestIngestion.generate(SourceInput.of("m.json", m.toString()), SourceInput.of("t.csv", csv.toString()), null, false);
+            List<SourceInput> parts = new java.util.ArrayList<>();
+            for (var g : gen.manifests()) {
+                parts.add(SourceInput.of(g.fileName(), g.content()));
+            }
+            var all = DatasetManifestCombiner.combine(parts, DatasetManifestCombiner.Selection.all());
+            eq(5, all.datasets());
+            eq(5, ((List<?>) ((Map<?, ?>) Json.parse(all.content())).get("datasets")).size());
+            var two = DatasetManifestCombiner.combine(parts, new DatasetManifestCombiner.Selection(2, null));
+            eq(2, two.datasets());
+            contains(two.content(), "s.T0");
+            contains(two.content(), "s.T1");
+            yes(!two.content().contains("s.T2"), "only the first two");
+            var named = DatasetManifestCombiner.combine(parts, new DatasetManifestCombiner.Selection(null, List.of("t3", "s.T1", "Nope")));
+            eq(2, named.datasets());
+            yes(has2(named, "COMBINE_TABLE_NOT_FOUND"), "unknown table reported");
+            var dup = new java.util.ArrayList<>(parts);
+            dup.add(parts.get(0));
+            dup.add(SourceInput.of("other.json", "{\"a\":1}"));
+            var withDup = DatasetManifestCombiner.combine(dup, DatasetManifestCombiner.Selection.all());
+            eq(5, withDup.datasets());
+            yes(has2(withDup, "COMBINE_DUPLICATE_DATASET") && has2(withDup, "COMBINE_FILE_SKIPPED"), "duplicate and non-dataset file reported");
+            var bad = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", "not json")), DatasetManifestCombiner.Selection.all());
+            yes(bad.hasErrors() && bad.content() == null, "unreadable input is an error");
+        });
+        test("combine: the CLI combines a folder of manifests (all, --count, --tables) and ingest can combine while generating", () -> {
+            Path dir = tempDir("casc-combine");
+            try {
+                Files.writeString(dir.resolve("s.sql"), "CREATE TABLE s.A (x INT); CREATE TABLE s.B (x INT); CREATE TABLE s.C (x INT);");
+                Files.writeString(dir.resolve("t.csv"), "table name,domain,boundary\nA,Account,F\nB,Account,F\nC,Account,F\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                Path out = dir.resolve("out");
+                eq(0, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-metadata", dir.resolve("t.csv").toString(),
+                        "--dataset-output", out.toString(), "--no-upstream"}, InputStream.nullInputStream(), po, po, k -> null));
+                Path combined = dir.resolve("combined.json");
+                eq(0, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString()}, InputStream.nullInputStream(), po, po, k -> null));
+                eq(3, ((List<?>) ((Map<?, ?>) Json.parse(Files.readString(combined))).get("datasets")).size());
+                eq(3, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString()}, InputStream.nullInputStream(), po, po, k -> null));
+                eq(0, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString(), "--count", "2", "--overwrite"},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                eq(2, ((List<?>) ((Map<?, ?>) Json.parse(Files.readString(combined))).get("datasets")).size());
+                eq(0, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString(), "--tables", "c", "--overwrite"},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                contains(Files.readString(combined), "s.C");
+                eq(2, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString(), "--count", "2", "--tables", "a", "--overwrite"},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                Path one = dir.resolve("one");
+                Path all = dir.resolve("all.json");
+                eq(0, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-metadata", dir.resolve("t.csv").toString(),
+                        "--dataset-output", one.toString(), "--no-upstream", "--combine-output", all.toString(), "--combined-only"},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                eq(3, ((List<?>) ((Map<?, ?>) Json.parse(Files.readString(all))).get("datasets")).size());
+                yes(!Files.exists(one.resolve("manifest_A.json")), "--combined-only skips the per-table files");
+                eq(2, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--table-metadata", dir.resolve("t.csv").toString(),
+                        "--dataset-output", one.toString(), "--combine-count", "1"}, InputStream.nullInputStream(), po, po, k -> null));
+            } finally {
+                deleteTree(dir);
+            }
         });
         test("datasets: the CLI accepts --no-upstream", () -> {
             Path dir = tempDir("casc-datasets-noup");
