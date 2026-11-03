@@ -517,6 +517,30 @@ public final class FindingGuide {
           "Two sources define the same table; they are reported, never merged.",
           "Decide which source is authoritative and remove or rename the other.",
           "docs/INGESTION.md");
+        e("TABLE_DESCRIPTIONS_COLUMN_MISSING", "Table descriptions header incomplete",
+          "The file has no table column (table name, tables or table) or no description column (description).",
+          "Use a header with both columns; other columns are ignored.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_DESCRIPTIONS_UNREADABLE", "Table descriptions file unusable",
+          "The table descriptions file could not be read or has no rows.",
+          "Fix the file: a header with a table column and a description column, then one table per row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_DESCRIPTION_DEFAULT_USED", "Datasets without a description from the file",
+          "Some generated datasets have no row in the descriptions file, so their description is the one in the source (a SQL comment) or is generated from the table name.",
+          "Add a row for each of those tables and run again with --overwrite.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_DESCRIPTION_DUPLICATE", "Table described twice",
+          "The same table has more than one row in the descriptions file; the first one was used.",
+          "Delete the duplicate row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_DESCRIPTION_NOT_FOUND", "Description for a table that is not in the source",
+          "The table in the descriptions file is not defined in the manifest or SQL, so its description was not used. This is expected when the file covers more tables than you generate.",
+          "Correct the name (matching ignores case), or delete the row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
+        e("TABLE_DESCRIPTION_ROW_SKIPPED", "Table description row skipped",
+          "A row is missing its table name or description, the table name is not usable, or the file is longer than the supported number of rows.",
+          "Fill in both values or delete the row.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_FROM_HEADING", "Table names taken from headings",
           "No table column was found, so rows were assigned to the nearest heading above them.",
           "Check that each heading really is a table name.",

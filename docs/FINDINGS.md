@@ -1000,6 +1000,54 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Decide which source is authoritative and remove or rename the other.
 - **Where to look:** docs/INGESTION.md
 
+## TABLE_DESCRIPTIONS_COLUMN_MISSING
+
+**Table descriptions header incomplete**
+
+- **What it means:** The file has no table column (table name, tables or table) or no description column (description).
+- **How to fix it:** Use a header with both columns; other columns are ignored.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_DESCRIPTIONS_UNREADABLE
+
+**Table descriptions file unusable**
+
+- **What it means:** The table descriptions file could not be read or has no rows.
+- **How to fix it:** Fix the file: a header with a table column and a description column, then one table per row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_DESCRIPTION_DEFAULT_USED
+
+**Datasets without a description from the file**
+
+- **What it means:** Some generated datasets have no row in the descriptions file, so their description is the one in the source (a SQL comment) or is generated from the table name.
+- **How to fix it:** Add a row for each of those tables and run again with --overwrite.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_DESCRIPTION_DUPLICATE
+
+**Table described twice**
+
+- **What it means:** The same table has more than one row in the descriptions file; the first one was used.
+- **How to fix it:** Delete the duplicate row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_DESCRIPTION_NOT_FOUND
+
+**Description for a table that is not in the source**
+
+- **What it means:** The table in the descriptions file is not defined in the manifest or SQL, so its description was not used. This is expected when the file covers more tables than you generate.
+- **How to fix it:** Correct the name (matching ignores case), or delete the row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
+## TABLE_DESCRIPTION_ROW_SKIPPED
+
+**Table description row skipped**
+
+- **What it means:** A row is missing its table name or description, the table name is not usable, or the file is longer than the supported number of rows.
+- **How to fix it:** Fill in both values or delete the row.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## TABLE_FROM_HEADING
 
 **Table names taken from headings**

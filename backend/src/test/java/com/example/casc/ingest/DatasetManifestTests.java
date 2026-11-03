@@ -343,6 +343,41 @@ public final class DatasetManifestTests {
                 deleteTree(dir);
             }
         });
+        test("descriptions: a table's description comes from the descriptions file, then the SQL comment, then the generated text", () -> {
+            String meta = "table name,domain,boundary\nTAPSAccount,Account,F\nPlain,Account,F\n";
+            String desc = "Tables,Description,Domain,Boundary,Revised Table Name\r\nTAPSAccount, Stores TAPS account records ,.Account,F,a2.dbo.T\r\na2oltp.Nope,Not here,,,\r\nTAPSAccount,Again,,,\r\nPlain,,,,\r\n";
+            var sel = new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("descriptions.csv", desc));
+            var r = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", SQL + "COMMENT ON TABLE Plain IS 'From the SQL';")), SourceInput.of("t.csv", meta),
+                    IngestOptions.defaults(), "a2oltp", null, false, "DB", sel);
+            yes(!r.hasErrors(), r.findings().toString());
+            eq("Stores TAPS account records", dataset(r.manifests().get(0)).get("description"));
+            yes(has(r, "TABLE_DESCRIPTION_NOT_FOUND") && has(r, "TABLE_DESCRIPTION_DUPLICATE") && has(r, "TABLE_DESCRIPTION_ROW_SKIPPED"), r.findings().toString());
+            yes(has(r, "TABLE_DESCRIPTION_DEFAULT_USED"), "Plain has no description row");
+            var man = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null,
+                    new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,description\nTAPSAccount,Account records\n")));
+            eq("Account records", dataset(man.manifests().get(0)).get("description"));
+            var none = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null, null);
+            eq("TAPSAccount table of the a2oltp schema", dataset(none.manifests().get(0)).get("description"));
+            var bad = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null,
+                    new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,notes\nTAPSAccount,x\n")));
+            yes(has(bad, "TABLE_DESCRIPTIONS_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a description column");
+        });
+        test("descriptions: the CLI takes --table-descriptions together with a table list", () -> {
+            Path dir = tempDir("casc-desc");
+            try {
+                Files.writeString(dir.resolve("m.json"), STRICT);
+                Files.writeString(dir.resolve("tables.csv"), "table name\nTAPSAccount\n");
+                Files.writeString(dir.resolve("d.csv"), "Tables,Description\nTAPSAccount,Stores TAPS account records\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                eq(0, Cli.run(new String[] {"ingest", "--manifest-input", dir.resolve("m.json").toString(), "--table-list", dir.resolve("tables.csv").toString(),
+                        "--domain", "Account", "--boundary", "F", "--no-upstream", "--table-descriptions", dir.resolve("d.csv").toString(), "--dataset-output", dir.resolve("out").toString()},
+                        InputStream.nullInputStream(), po, po, k -> null));
+                contains(Files.readString(dir.resolve("out/manifest_TAPSAccount.json")), "\"description\": \"Stores TAPS account records\"");
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("datasets: the CLI accepts --no-upstream", () -> {
             Path dir = tempDir("casc-datasets-noup");
             try {

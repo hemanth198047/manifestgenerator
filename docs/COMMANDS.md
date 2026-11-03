@@ -70,26 +70,31 @@ Draft manifest: add `--db-name NAME --output FILE` and optionally `--db-type TYP
 
 ### Dataset manifests, one per table
 ```
-casc-generator ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [options]
-casc-generator ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema S] [--dialect D] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR [options]
+casc-generator ingest --manifest-input MANIFEST.json --dataset-output OUT_DIR (--table-metadata META.csv | --table-list TABLES.csv ...) [options]
+casc-generator ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema S] [--dialect D] --dataset-output OUT_DIR (--table-metadata META.csv | --table-list TABLES.csv ...) [options]
 ```
-Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest with trailing or missing commas is still read) **or** as SQL DDL, not both.
-`TABLE_METADATA.csv` has the header `table name, domain, boundary, upstream dataset, producer eonid`; one `manifest_<table>.json` is written for every table that has a row. With `--table-list`, the list decides which tables are generated (see below) and `--table-metadata` is optional.
+Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest with trailing or missing commas is still read) **or** as SQL DDL, not both. One `manifest_<table>.json` is written per selected table.
+`META.csv` has the header `table name, domain, boundary, upstream dataset, producer eonid`; every table that has a row is generated. With `--table-list` the list decides which tables are generated and `--table-metadata` is optional.
 
 | Option | Meaning |
 |--------|---------|
-| `--column-metadata FILE` | CSV `table name, column name, system data element`: supplies `systemDataElements` per column (fills what SQL cannot, replaces a manifest's own value) |
+| `--manifest-input FILE` / `--sql-input FILE` | The tables: a manifest JSON, or SQL DDL (repeatable). Exactly one of the two |
+| `--dataset-output DIR` | Where the per-table manifests are written (required) |
+| `--table-metadata FILE` | CSV `table name, domain, boundary, upstream dataset, producer eonid`: which tables, and each one's domain, boundary and upstream |
 | `--table-list FILE` | Generate only for the tables in FILE (a `table name` column, a one-column CSV, or a `.txt` with one table per line; `table`, `schema.table` or `database.schema.table`). `--table-metadata` then becomes optional |
 | `--domain TEXT`, `--boundary TEXT` | With `--table-list`: the domain (`Account (Operations DGC Glossary)`) and boundary for listed tables that have no row in `--table-metadata` |
-| `--no-upstream` | Write no `upstreamDatasets`; the CSV then needs only `table name, domain, boundary` |
+| `--table-descriptions FILE` | CSV/TSV with a table column (`table name`, `tables` or `table`) and a `description` column: each table's description in its dataset manifest (other columns are ignored; without a row the SQL comment or a generated description is used) |
+| `--column-metadata FILE` | CSV `table name, column name, system data element`: supplies `systemDataElements` per column (fills what SQL cannot, replaces a manifest's own value) |
+| `--no-upstream` | Write no `upstreamDatasets`; the metadata CSV then needs only `table name, domain, boundary` |
+| `--database-name NAME` | The database part of every dataset name (`database.schema.table`). Default: the manifest's `logicalName`, or the database written in the SQL. Without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported |
+| `--default-schema S` | Schema for SQL tables that have none |
+| `--dialect D` | SQL dialect (as for reading sources) |
 | `--combine-output FILE` | Also write one combined manifest |
 | `--combine-count N` / `--combine-tables A,B,...` | Combine only the first N datasets / only the named tables (not both) |
 | `--combined-only` | With `--combine-output`: skip the per-table files |
-| `--default-schema S` | Schema for SQL tables that have none |
-| `--database-name NAME` | The database part of every dataset name (`database.schema.table`). Default: the manifest's `logicalName`, or the database written in the SQL (`db.schema.table`). Without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported |
 | `--overwrite` | Replace existing files |
 
-The run ends with a summary (tables read, metadata rows, manifests generated). Details: `docs/INGESTION.md`.
+The run ends with a summary (tables read, rows or listed tables, manifests generated). Details: `docs/INGESTION.md`.
 
 ## combine
 `casc-generator combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`

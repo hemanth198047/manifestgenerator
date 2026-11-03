@@ -101,35 +101,47 @@ and symbolic links, ignore unknown file types (reported as notes), and read file
 - `POST /api/draft?format=json|yaml` with the same body plus `"system":{"databaseLogicalName","databaseType","defaultSchema","interfaceDirection"}` returns the draft,
   validation report and unresolved decisions (HTTP 422 if the draft cannot be built).
 
-## Dataset manifests per table (manifest JSON + table metadata CSV)
-`ingest --manifest-input FILE --table-metadata FILE --dataset-output DIR [--overwrite]` writes one manifest per table.
-The tables can also come from SQL DDL instead of a manifest JSON: `ingest --sql-input FILE [--sql-input FILE ...] [--default-schema S] [--dialect D] --table-metadata FILE --dataset-output DIR [--overwrite]`
-(use `--manifest-input` or `--sql-input`, not both). The dataset name is `database.schema.table`: the database is the manifest's `logicalName` or the database written in the SQL, and `--database-name DB` sets or replaces it (without any, `DATASET_DATABASE_MISSING` is reported and the name is `schema.table`).
-With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
-a column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one; SQL has no system data elements, so `systemDataElements` is left out; views are skipped (`DATASET_VIEW_SKIPPED`).
+## Dataset manifests per table
+`ingest` can also write one dataset manifest per table. Everything below is one command; each input is optional unless it says required.
 
-**Choosing the tables from a list.** Instead of (or together with) the metadata CSV, give `--table-list FILE`: the tables to generate. The file is a CSV or TSV with a `table name` column, a one-column file, or a `.txt` file with one table per line (blank lines and `#` lines are ignored).
-A name may be `table`, `schema.table` or `database.schema.table`; the extra parts must match the source. Only listed tables are generated. A listed table takes its domain, boundary and upstream from its row in `--table-metadata` when it has one;
-otherwise `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` are used and it has no upstream dataset. `--table-metadata` can then be left out entirely (use `--no-upstream` when there are no upstreams).
-Listed tables that are not in the source are reported (`TABLE_LIST_NOT_IN_SOURCE`).
+```
+ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema S] [--dialect D] )
+       --dataset-output OUT_DIR
+       ( --table-metadata TABLE_METADATA.csv | --table-list TABLES.csv [--domain TEXT] [--boundary TEXT] )   at least one of the two
+       [--table-descriptions DESCRIPTIONS.csv] [--column-metadata COLUMNS.csv]
+       [--no-upstream] [--database-name DB] [--combine-output FILE ...] [--overwrite]
+```
 
-**Tables without upstreams.** Add `--no-upstream` to either route: no `upstreamDatasets` is written, and the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional
-(the header then needs only `table name, domain, boundary`; if the columns are present they are ignored).
+**Where the tables come from (give one).**
+- `--manifest-input FILE`: the `databases[].schemas[].tables[]` section of a manifest JSON. A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently (`MANIFEST_LENIENT_READ`).
+- `--sql-input FILE` (repeatable): `CREATE TABLE` statements, read by the normal SQL reader. The schema comes from `schema.table` (or `--default-schema`; without either the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported).
+  A column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one. SQL has no system data elements, so `systemDataElements` is left out unless `--column-metadata` supplies them. Views are skipped (`DATASET_VIEW_SKIPPED`).
 
-**Supplying system data elements from outside (optional).** Add `--column-metadata FILE` to either route. The CSV has the header `table name, column name, system data element` and one row per column
-(`table name` may be `schema.table`; names are matched ignoring case). Each value becomes that column's `systemDataElements: [value]`. It fills what SQL cannot supply and, with a manifest JSON,
-replaces the manifest's own `systemDataElement` for that column. When the column has no other description, the same text is also used as its `description`.
-Rows that match no table or column are reported (`COLUMN_METADATA_NOT_FOUND`); duplicates use the first row. Example: `infrastructure/integrations/examples/datasets/column_metadata.csv`.
-- **Tables** come from the `databases[].schemas[].tables[]` section of the input manifest JSON (columns with their `systemDataElement`).
-  A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently, with a `MANIFEST_LENIENT_READ` warning.
-- **Metadata CSV** columns: `table name, domain, boundary, upstream dataset, producer eonid` (header case and spacing ignored). A domain written
-  `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
-- **One manifest per table that has a metadata row** (`manifest_<table>.json`; the schema is added to the file name only when two schemas share a table name).
-  Each holds one `datasets` entry: `name` = `database.schema.table`, `format` = `ResultSet`, `boundaries` = `[{product:[boundary]}]`, `dgcDataDomains`,
-  `upstreamDatasets` = `[{name, producerEonId}]`, `datasetElements` (one per column: `name`, `description` and `systemDataElements: [<the column's systemDataElement>]`; both are left out when the column has no system data element),
-  `eucOrManualProcess` = `{}`, `originatingCatalogingSource` = `FDC`.
-- A metadata row whose table is not in the manifest is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a manifest table without a row is not generated (info `TABLE_WITHOUT_METADATA`).
-  Errors (missing metadata columns, no tables, unreadable files) write nothing. Examples: `infrastructure/integrations/examples/datasets/`.
+**Which tables are generated, and their domain, boundary and upstream (give at least one).**
+- `--table-metadata FILE`: CSV with the header `table name, domain, boundary, upstream dataset, producer eonid` (case and spacing ignored). **One manifest per table that has a row.** A domain written `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
+- `--table-list FILE`: the tables to generate, as a CSV or TSV with a `table name` column, a one-column file, or a `.txt` with one table per line (blank lines and `#` lines ignored). A name may be `table`, `schema.table` or `database.schema.table`; the extra parts must match the source.
+  Only listed tables are generated. A listed table takes its domain, boundary and upstream from its row in `--table-metadata` when it has one; otherwise `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` are used and it has no upstream dataset.
+  With a table list, `--table-metadata` can be left out. Listed tables that are not in the source give `TABLE_LIST_NOT_IN_SOURCE`.
+- A metadata row whose table is not in the source is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a source table that is not selected is not generated (info `TABLE_WITHOUT_METADATA`).
+
+**What goes into each dataset.**
+- `name` = `database.schema.table`. The database is the manifest's `logicalName` or the database written in the SQL; `--database-name DB` sets or replaces it (without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported).
+- `description`: from `--table-descriptions FILE` when the table has a row there, else the table's own description in the source (a SQL comment), else generated from the table name.
+  The file is a CSV or TSV with a table column (`table name`, `tables` or `table`) and a `description` column; other columns are ignored; a table may be `table`, `schema.table` or `database.schema.table`. Rows for tables that are not in the source are reported (`TABLE_DESCRIPTION_NOT_FOUND`);
+  generated datasets without a row are counted (`TABLE_DESCRIPTION_DEFAULT_USED`).
+- `format` = `ResultSet`; `boundaries` = `[{product:[boundary]}]`; `dgcDataDomains`; `upstreamDatasets` = `[{name, producerEonId}]` (left out with `--no-upstream`);
+  `datasetElements` (one per column: `name`, `description` and `systemDataElements: [<system data element>]`; both are left out when the column has no system data element);
+  `eucOrManualProcess` = `{}`; `originatingCatalogingSource` = `FDC`.
+
+**Options.**
+- `--no-upstream`: no `upstreamDatasets`; the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional (the header then needs only `table name, domain, boundary`).
+- `--column-metadata FILE`: CSV `table name, column name, system data element` (`table name` may be `schema.table`). Each value becomes the column's `systemDataElements: [value]`; it fills what SQL cannot supply and, with a manifest JSON, replaces the manifest's own `systemDataElement`.
+  When the column has no other description, the same text is its `description`. Rows that match nothing give `COLUMN_METADATA_NOT_FOUND`.
+- `--combine-output FILE` (with `--combine-count N` or `--combine-tables A,B,...`, and `--combined-only`): also write one combined manifest; see *Combining dataset manifests* below.
+- `--overwrite`: replace existing files.
+
+**One manifest per table:** `manifest_<table>.json` (the schema is added to the file name only when two schemas share a table name). The run ends with a summary (tables read, rows or listed tables, manifests generated).
+Errors (missing columns, no tables, unreadable files) write nothing. Examples: `infrastructure/integrations/examples/datasets/`. Every option is also listed in `docs/COMMANDS.md`.
 
 ## Combining dataset manifests
 Merge the `datasets` of several dataset manifests into one manifest (`{"datasets": [ ... ]}`), either afterwards or while generating.

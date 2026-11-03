@@ -18,6 +18,7 @@ public final class TestRunner {
         WizardWebTests.register();
         ToolTests.register();
         SkillFileTests.register();
+        SkillFileTests.registerSync();
         FindingGuideTests.register();
         JsonToolsTests.register();
         FuzzTests.register();

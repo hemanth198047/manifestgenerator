@@ -1,0 +1,2 @@
+Tables,Description,Domain,Boundary,Revised Table Name
+TAPSAccount, Stores TAPS account records,.Account (Operations DGC Glossary),Firmwide - *All Products,a2.dbo.TAPSAccount

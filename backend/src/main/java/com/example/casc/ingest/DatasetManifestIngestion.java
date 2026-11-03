@@ -60,8 +60,15 @@ public final class DatasetManifestIngestion {
         return generate(manifestJson, metadataCsv, columnCsv, includeUpstream, databaseName, null);
     }
 
-    /** Which tables to generate: a table list (with optional default domain and boundary) instead of, or together with, the metadata CSV. */
-    public record TableSelection(SourceInput tableList, String domain, String boundary) {}
+    /**
+     * Optional extra inputs: a table list (which tables to generate, with a default domain and boundary) instead of, or together with, the metadata CSV,
+     * and a table descriptions file (a description per table). Each part may be null.
+     */
+    public record TableSelection(SourceInput tableList, String domain, String boundary, SourceInput descriptions) {
+        public TableSelection(SourceInput tableList, String domain, String boundary) {
+            this(tableList, domain, boundary, null);
+        }
+    }
 
     /** metadataCsv may be null when selection has a table list. selection may be null. */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream, String databaseName,
@@ -152,6 +159,13 @@ public final class DatasetManifestIngestion {
             withDb.add(databaseName == null || databaseName.isBlank() ? t : new Table(databaseName.trim(), t.schema(), t.name(), t.description(), t.columns()));
         }
         List<Table> allTables = applyColumnMetadata(withDb, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
+        SourceInput descInput = selection == null ? null : selection.descriptions();
+        Set<String> describedByFile = new HashSet<>();
+        if (descInput != null) {
+            TableDescriptionsCsv.Result desc = TableDescriptionsCsv.parse(descInput);
+            findings.addAll(desc.findings());
+            allTables = applyDescriptions(allTables, desc, descInput.name(), sourceName, describedByFile, findings);
+        }
 
         // the rows that drive generation: the metadata rows, or (with a table list) one row per listed table
         java.util.Set<Row> defaulted = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
@@ -192,7 +206,7 @@ public final class DatasetManifestIngestion {
         Set<String> seenRows = new HashSet<>();
         int missingDb = 0;
         Set<String> usedNames = new HashSet<>();
-        Set<String> generatedTables = new HashSet<>();
+        List<Table> usedTables = new ArrayList<>();
         for (Row row : rows) {
             String key = ((row.qualifier() == null ? "" : row.qualifier() + ".") + row.table()).toLowerCase(Locale.ROOT);
             if (!seenRows.add(key)) {
@@ -231,9 +245,22 @@ public final class DatasetManifestIngestion {
                 if (t.database() == null) {
                     missingDb++;
                 }
-                generatedTables.add(t.name().toLowerCase(Locale.ROOT));
+                usedTables.add(t);
                 String file = fileName(t, matches.size() > 1, usedNames);
                 out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream)) + "\n"));
+            }
+        }
+        if (descInput != null) {
+            int without = 0;
+            for (Table t : usedTables) {
+                if (!describedByFile.contains(tableKey(t))) {
+                    without++;
+                }
+            }
+            if (without > 0) {
+                findings.add(Finding.info("TABLE_DESCRIPTION_DEFAULT_USED", descInput.name(), without + " of the " + usedTables.size()
+                        + " generated dataset(s) have no row in " + descInput.name() + ", so their description comes from the source (a SQL comment) or is generated from the table name.",
+                        "Add a row for each of those tables to the table descriptions file and run again with --overwrite."));
             }
         }
         if (missingDb > 0) {
@@ -265,6 +292,45 @@ public final class DatasetManifestIngestion {
                     "Check the table names in both files."));
         }
         return new Result(out, findings);
+    }
+
+    private static String tableKey(Table t) {
+        return ((t.database() == null ? "" : t.database() + ".") + (t.schema() == null ? "" : t.schema() + ".") + t.name()).toLowerCase(Locale.ROOT);
+    }
+
+    /** The description of a table comes from the descriptions file when it has a row there; entries that match no table are reported. */
+    private static List<Table> applyDescriptions(List<Table> tables, TableDescriptionsCsv.Result desc, String descName, String sourceName, Set<String> describedKeys,
+                                                 List<Finding> findings) {
+        if (desc.entries().isEmpty()) {
+            return tables;
+        }
+        Set<TableDescriptionsCsv.Entry> used = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<Table> out = new ArrayList<>();
+        for (Table t : tables) {
+            TableDescriptionsCsv.Entry hit = null;
+            for (TableDescriptionsCsv.Entry e : desc.entries()) {
+                if (e.table().equalsIgnoreCase(t.name()) && qualifierMatches(t, e.qualifier())) {
+                    hit = e;
+                    used.add(e);
+                    break;
+                }
+            }
+            if (hit == null) {
+                out.add(t);
+            } else {
+                Table n = new Table(t.database(), t.schema(), t.name(), hit.description(), t.columns());
+                describedKeys.add(tableKey(n));
+                out.add(n);
+            }
+        }
+        for (TableDescriptionsCsv.Entry e : desc.entries()) {
+            if (!used.contains(e)) {
+                findings.add(Finding.warning("TABLE_DESCRIPTION_NOT_FOUND", descName + ":line " + e.line(),
+                        "Table '" + (e.qualifier() == null ? "" : e.qualifier() + ".") + e.table() + "' is not defined in " + sourceName + ", so its description was not used.",
+                        "Correct the table name in the descriptions file (matching ignores case; a schema.table or database.schema.table must match the source), or delete the row."));
+            }
+        }
+        return out;
     }
 
     /** qualifier null: any table; "schema": the schema must match; "database.schema": both must match (case ignored). */

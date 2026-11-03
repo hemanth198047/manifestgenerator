@@ -3,6 +3,8 @@ package com.example.casc;
 import static com.example.casc.TestKit.*;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +53,54 @@ public final class SkillFileTests {
                 }
             }
         });
+    }
+
+    private static final java.util.List<String> DATASET_OPTIONS = java.util.List.of("--manifest-input", "--sql-input", "--table-metadata", "--table-list", "--domain", "--boundary",
+            "--table-descriptions", "--column-metadata", "--no-upstream", "--database-name", "--default-schema", "--dialect", "--combine-output", "--combine-count", "--combine-tables",
+            "--combined-only", "--dataset-output", "--overwrite");
+    private static final java.util.Map<String, java.util.List<String>> OTHER_OPTIONS = java.util.Map.of(
+            "casc-combine-datasets", java.util.List.of("--input", "--output", "--count", "--tables", "--overwrite"),
+            "casc-json-tools", java.util.List.of("--input", "--path", "--value", "--text", "--output", "--compact", "--sort-keys", "--lenient", "--with-paths", "--lines", "--overwrite"),
+            "casc-compare-files", java.util.List.of("--input", "--output", "--json-output", "--path", "--key", "--title", "--max-rows", "--lenient", "--fail-on-diff", "--overwrite"));
+
+    public static void registerSync() {
+        test("skills and docs stay in step: every dataset, combine, json and compare option is in the help, COMMANDS.md, INGESTION.md and the matching skills; Claude skills match Copilot skills", () -> {
+            Path commands = Path.of("docs/COMMANDS.md");
+            if (!Files.isRegularFile(commands) || !Files.isDirectory(Path.of(".github/skills"))) {
+                throw new Skipped("run from the repository root to check that the skills and docs are in step");
+            }
+            String help = helpText();
+            String doc = read(commands);
+            String ingestion = read(Path.of("docs/INGESTION.md"));
+            for (String o : DATASET_OPTIONS) {
+                yes(help.contains(o), "help lists " + o);
+                yes(doc.contains(o), "COMMANDS.md lists " + o);
+                yes(ingestion.contains(o) || o.equals("--overwrite") || o.equals("--dialect"), "INGESTION.md lists " + o);
+                for (String skill : java.util.List.of(".github/skills/casc-dataset-manifests/SKILL.md", "infrastructure/integrations/claude/casc-dataset-manifests/SKILL.md")) {
+                    yes(read(Path.of(skill)).contains(o), skill + " lists " + o);
+                }
+            }
+            for (var e : OTHER_OPTIONS.entrySet()) {
+                String skill = read(Path.of(".github/skills/" + e.getKey() + "/SKILL.md"));
+                for (String o : e.getValue()) {
+                    yes(doc.contains(o), "COMMANDS.md lists " + o);
+                    yes(skill.contains(o), e.getKey() + " lists " + o);
+                }
+                eq(skill.replace("\r\n", "\n"), read(Path.of("infrastructure/integrations/claude/" + e.getKey() + "/SKILL.md")).replace("\r\n", "\n"));
+            }
+            for (String name : java.util.List.of("casc-explain-findings")) {
+                eq(read(Path.of(".github/skills/" + name + "/SKILL.md")).replace("\r\n", "\n"), read(Path.of("infrastructure/integrations/claude/" + name + "/SKILL.md")).replace("\r\n", "\n"));
+            }
+            String copilot = read(Path.of(".github/skills/casc-dataset-manifests/SKILL.md")).replace("\r\n", "\n");
+            String claude = read(Path.of("infrastructure/integrations/claude/casc-dataset-manifests/SKILL.md")).replace("\r\n", "\n");
+            eq(copilot.substring(copilot.indexOf("## Before you start")), claude.substring(claude.indexOf("## Before you start")));
+        });
+    }
+
+    private static String helpText() {
+        java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+        com.example.casc.cli.Cli.run(new String[] {"help"}, InputStream.nullInputStream(), new PrintStream(o, true, StandardCharsets.UTF_8), new PrintStream(o, true, StandardCharsets.UTF_8), k -> null);
+        return o.toString(StandardCharsets.UTF_8);
     }
 
     private static String read(Path p) throws IOException {
