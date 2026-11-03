@@ -23,6 +23,11 @@ public final class TableMetadataCsv {
     public record Result(List<Row> rows, List<Finding> findings) {}
 
     public static Result parse(SourceInput in) {
+        return parse(in, true);
+    }
+
+    /** requireUpstream false: the upstream dataset and producer eonid columns are optional (datasets without upstreams). */
+    public static Result parse(SourceInput in, boolean requireUpstream) {
         List<Finding> findings = new ArrayList<>();
         if (in.readError() != null || in.text() == null) {
             findings.add(Finding.error("METADATA_UNREADABLE", in.name(), in.readError() == null ? "The metadata file has no text." : in.readError(),
@@ -51,10 +56,11 @@ public final class TableMetadataCsv {
             }
         }
         for (String need : List.of("table", "domain", "boundary", "upstream", "eon")) {
-            if (!idx.containsKey(need)) {
+            if (!idx.containsKey(need) && (requireUpstream || !(need.equals("upstream") || need.equals("eon")))) {
                 findings.add(Finding.error("METADATA_COLUMN_MISSING", in.name() + ":line " + r.lines().get(0),
                         "The metadata file has no '" + label(need) + "' column.",
-                        "Use the header: table name, domain, boundary, upstream dataset, producer eonid."));
+                        requireUpstream ? "Use the header: table name, domain, boundary, upstream dataset, producer eonid."
+                                : "Use the header: table name, domain, boundary (upstream dataset and producer eonid are optional with --no-upstream)."));
             }
         }
         if (!findings.isEmpty()) {
@@ -90,8 +96,8 @@ public final class TableMetadataCsv {
         return r.truncated();
     }
 
-    private static String cell(List<String> rec, int i) {
-        return i < rec.size() ? rec.get(i).trim() : "";
+    private static String cell(List<String> rec, Integer i) {
+        return i != null && i < rec.size() ? rec.get(i).trim() : "";
     }
 
     private static String label(String key) {

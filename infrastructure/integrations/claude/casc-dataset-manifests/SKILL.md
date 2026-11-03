@@ -19,12 +19,14 @@ it uses the documented `ingest` command with the dataset options. If the command
 `run-cli ingest --manifest-input MANIFEST.json --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR`
 
 Or, with the tables read from SQL DDL instead:
-`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] [--column-metadata COLUMNS.csv] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR`
+`run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] [--column-metadata COLUMNS.csv] [--no-upstream] --table-metadata TABLE_METADATA.csv --dataset-output OUT_DIR`
 
 - Give exactly one of `--manifest-input` or `--sql-input`. With SQL the schema comes from `schema.table` (or `--default-schema`), a column's `description` comes from a SQL comment when there is one, there are no system data elements unless `--column-metadata` supplies them (otherwise `systemDataElements` is left out), and views are skipped.
 
 Add `--overwrite` only when the user wants existing `manifest_<table>.json` files in OUT_DIR replaced; without it the command refuses to overwrite.
 `--table-metadata` and `--dataset-output` are always required, plus exactly one of `--manifest-input` or `--sql-input`. Exit codes: 0 written, 1 errors (nothing written), 2 usage error, 3 I/O error, 4 internal error.
+
+- Add `--no-upstream` when the tables have no upstream datasets: no `upstreamDatasets` is written and the metadata CSV only needs `table name, domain, boundary`. Without the flag the upstream columns are required. Ask the user if their tables have upstreams.
 
 ## Workflow
 1. Confirm the manifest file or SQL files, the metadata CSV and the output directory with the user.

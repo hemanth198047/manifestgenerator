@@ -107,6 +107,9 @@ The tables can also come from SQL DDL instead of a manifest JSON: `ingest --sql-
 (use `--manifest-input` or `--sql-input`, not both). With SQL: the schema comes from `schema.table` in the CREATE TABLE (or `--default-schema`, else the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported);
 a column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one; SQL has no system data elements, so `systemDataElements` is left out; views are skipped (`DATASET_VIEW_SKIPPED`).
 
+**Tables without upstreams.** Add `--no-upstream` to either route: no `upstreamDatasets` is written, and the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional
+(the header then needs only `table name, domain, boundary`; if the columns are present they are ignored).
+
 **Supplying system data elements from outside (optional).** Add `--column-metadata FILE` to either route. The CSV has the header `table name, column name, system data element` and one row per column
 (`table name` may be `schema.table`; names are matched ignoring case). Each value becomes that column's `systemDataElements: [value]`. It fills what SQL cannot supply and, with a manifest JSON,
 replaces the manifest's own `systemDataElement` for that column. When the column has no other description, the same text is also used as its `description`.

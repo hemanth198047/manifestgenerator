@@ -493,7 +493,7 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 **Metadata column missing**
 
 - **What it means:** The CSV lacks one of the five required columns.
-- **How to fix it:** Use the header `table name, domain, boundary, upstream dataset, producer eonid`.
+- **How to fix it:** Use the header `table name, domain, boundary, upstream dataset, producer eonid` (with --no-upstream only `table name, domain, boundary` is needed).
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## METADATA_DUPLICATE_TABLE

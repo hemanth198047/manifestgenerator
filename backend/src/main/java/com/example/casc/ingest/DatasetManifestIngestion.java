@@ -44,10 +44,15 @@ public final class DatasetManifestIngestion {
 
     /** As above, with optional external column metadata (a system data element per column); columnCsv may be null. */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv) {
+        return generate(manifestJson, metadataCsv, columnCsv, true);
+    }
+
+    /** includeUpstream false: no upstreamDatasets are written and the metadata needs no upstream columns. */
+    public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream) {
         List<Finding> findings = new ArrayList<>();
         ManifestTables.Result tables = ManifestTables.read(manifestJson);
         findings.addAll(tables.findings());
-        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv);
+        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv, includeUpstream);
     }
 
     /**
@@ -62,6 +67,12 @@ public final class DatasetManifestIngestion {
     /** As above, with optional external column metadata (a system data element per column); columnCsv may be null. */
     public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
                                          SourceInput columnCsv) {
+        return generateFromSql(sql, metadataCsv, options, defaultSchema, columnCsv, true);
+    }
+
+    /** includeUpstream false: no upstreamDatasets are written and the metadata needs no upstream columns. */
+    public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
+                                         SourceInput columnCsv, boolean includeUpstream) {
         List<Finding> findings = new ArrayList<>();
         RawMetadataBundle bundle = SourceIngestionService.standard().ingest(sql, options);
         findings.addAll(bundle.findings());
@@ -92,11 +103,12 @@ public final class DatasetManifestIngestion {
             findings.add(Finding.warning("DATASET_SCHEMA_MISSING", label, noSchema + " table(s) have no schema in the SQL, so their datasets are named with the table name only.",
                     "Qualify the table names in the SQL (schema.table) or pass --default-schema SCHEMA, then run again with --overwrite."));
         }
-        return build(tables, findings, label, metadataCsv, columnCsv);
+        return build(tables, findings, label, metadataCsv, columnCsv, includeUpstream);
     }
 
-    private static Result build(List<Table> sourceTables, List<Finding> findings, String sourceName, SourceInput metadataCsv, SourceInput columnCsv) {
-        TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv);
+    private static Result build(List<Table> sourceTables, List<Finding> findings, String sourceName, SourceInput metadataCsv, SourceInput columnCsv,
+                                boolean includeUpstream) {
+        TableMetadataCsv.Result meta = TableMetadataCsv.parse(metadataCsv, includeUpstream);
         findings.addAll(meta.findings());
         ColumnMetadataCsv.Result colMeta = columnCsv == null ? ColumnMetadataCsv.Result.empty() : ColumnMetadataCsv.parse(columnCsv);
         findings.addAll(colMeta.findings());
@@ -125,13 +137,13 @@ public final class DatasetManifestIngestion {
                         "Correct the table name in the CSV (names are matched ignoring case), or add the table to " + sourceName + ", or delete the row. If " + sourceName + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (METADATA_TABLE_NOT_IN_MANIFEST)."));
                 continue;
             }
-            for (String problem : problems(row)) {
+            for (String problem : problems(row, includeUpstream)) {
                 findings.add(Finding.warning("METADATA_VALUE_MISSING", metadataCsv.name() + ":line " + row.line(),
                         "Table '" + row.table() + "': " + problem, "Fill in the value in the metadata CSV and run again with --overwrite."));
             }
             for (Table t : matches) {
                 String file = fileName(t, matches.size() > 1, usedNames);
-                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metadataCsv.name())) + "\n"));
+                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metadataCsv.name(), includeUpstream)) + "\n"));
             }
         }
         Set<String> described = new HashSet<>();
@@ -202,7 +214,7 @@ public final class DatasetManifestIngestion {
         return out;
     }
 
-    private static List<String> problems(Row r) {
+    private static List<String> problems(Row r, boolean includeUpstream) {
         List<String> p = new ArrayList<>();
         if (r.domain().isEmpty()) {
             p.add("no domain; the dataset has no data domain.");
@@ -210,7 +222,7 @@ public final class DatasetManifestIngestion {
         if (r.boundary().isEmpty()) {
             p.add("no boundary; the dataset has no boundary.");
         }
-        if (r.upstreamDataset().isEmpty()) {
+        if (includeUpstream && r.upstreamDataset().isEmpty()) {
             p.add("no upstream dataset; the dataset has no upstream mapping.");
         }
         return p;
@@ -230,7 +242,7 @@ public final class DatasetManifestIngestion {
         return s.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
-    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName) {
+    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName, boolean includeUpstream) {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("name", (t.schema() != null ? t.schema() + "." : "") + t.name());
         d.put("description", t.description() != null ? t.description()
@@ -246,7 +258,7 @@ public final class DatasetManifestIngestion {
             dom.put("domainName", row.domain());
             d.put("dgcDataDomains", new LinkedHashMap<>(Map.of(row.glossary(), List.of(dom))));
         }
-        if (!row.upstreamDataset().isEmpty()) {
+        if (includeUpstream && !row.upstreamDataset().isEmpty()) {
             Map<String, Object> up = new LinkedHashMap<>();
             up.put("name", row.upstreamDataset());
             Object eon = eon(row, findings, metaName);

@@ -173,6 +173,38 @@ public final class DatasetManifestTests {
             }
             eq(694, DatasetManifestIngestion.generate(SourceInput.of("m.json", m.toString()), SourceInput.of("t.csv", all.toString())).manifests().size());
         });
+        test("datasets: without upstreams no upstreamDatasets are written and the upstream columns are optional", () -> {
+            String short3 = "table name,domain,boundary\nTAPSAccount,Account,Firmwide - *All Product Types\n";
+            var strict = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", short3), null, true);
+            yes(has(strict, "METADATA_COLUMN_MISSING") && strict.hasErrors(), "upstream columns are required by default");
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", short3), null, false);
+            yes(!r.hasErrors(), r.findings().toString());
+            eq(1, r.manifests().size());
+            Map<String, Object> d = dataset(r.manifests().get(0));
+            yes(!d.containsKey("upstreamDatasets"), "no upstreamDatasets");
+            eq("[{\"product\":[\"Firmwide - *All Product Types\"]}]", Json.writeCompact(d.get("boundaries")));
+            var full = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", CSV), null, false);
+            yes(!dataset(full.manifests().get(0)).containsKey("upstreamDatasets"), "also omitted when the CSV has upstream columns");
+            yes(!has(full, "METADATA_VALUE_MISSING"), "no upstream warnings");
+        });
+        test("datasets: the CLI accepts --no-upstream", () -> {
+            Path dir = tempDir("casc-datasets-noup");
+            try {
+                Files.writeString(dir.resolve("m.json"), STRICT);
+                Files.writeString(dir.resolve("t.csv"), "table name,domain,boundary\nTAPSAccount,Account,Firmwide\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                String[] base = {"ingest", "--manifest-input", dir.resolve("m.json").toString(), "--table-metadata", dir.resolve("t.csv").toString(),
+                        "--dataset-output", dir.resolve("out").toString()};
+                eq(1, Cli.run(base, InputStream.nullInputStream(), po, po, k -> null));
+                String[] withFlag = java.util.Arrays.copyOf(base, base.length + 1);
+                withFlag[base.length] = "--no-upstream";
+                eq(0, Cli.run(withFlag, InputStream.nullInputStream(), po, po, k -> null));
+                yes(!Files.readString(dir.resolve("out/manifest_TAPSAccount.json")).contains("upstreamDatasets"), "no upstreamDatasets");
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("datasets: the CLI accepts --column-metadata", () -> {
             Path dir = tempDir("casc-datasets-cols");
             try {

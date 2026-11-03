@@ -263,7 +263,7 @@ public final class FindingGuide {
           "docs/INGESTION.md");
         e("METADATA_COLUMN_MISSING", "Metadata column missing",
           "The CSV lacks one of the five required columns.",
-          "Use the header `table name, domain, boundary, upstream dataset, producer eonid`.",
+          "Use the header `table name, domain, boundary, upstream dataset, producer eonid` (with --no-upstream only `table name, domain, boundary` is needed).",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("METADATA_DUPLICATE_TABLE", "Table listed twice in the metadata",
           "Only the first row for the table was used.",
