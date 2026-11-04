@@ -149,7 +149,7 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 **Requested table not found**
 
 - **What it means:** A table named in --tables has no dataset in the input, so it is not in the combined manifest.
-- **How to fix it:** Check the spelling (matching ignores case; use the table name or schema.table).
+- **How to fix it:** Check the spelling (matching ignores case and any prefix such as a2.dbo.; use the table name).
 - **Where to look:** docs/INGESTION.md (Combining dataset manifests)
 
 ## CSV_BLANK_HEADER
@@ -205,7 +205,7 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 **Several tables get the same dataset name**
 
 - **What it means:** Every dataset is named database.schema.table with the fixed database and schema (default a2 and dbo), so tables with the same name from different schemas or databases of the source get the same dataset name. Their files are kept apart, but the names are identical.
-- **How to fix it:** Generate them separately (use --table-list with schema.table), or give them different names in the source.
+- **How to fix it:** Generate them from separate sources, or give them different names in the source.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## DATASET_SUMMARY
@@ -1037,7 +1037,7 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 **Description for a table that is not in the source**
 
 - **What it means:** The table in the descriptions file is not defined in the manifest or SQL, so its description was not used. This is expected when the file covers more tables than you generate.
-- **How to fix it:** Correct the name (matching ignores case), or delete the row.
+- **How to fix it:** Correct the table name (matching ignores case and any prefix such as a2.dbo.), or delete the row.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## TABLE_DESCRIPTION_ROW_SKIPPED
@@ -1085,15 +1085,15 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 **Table list entry skipped**
 
 - **What it means:** An entry is not a usable table name.
-- **How to fix it:** Write the table as table, schema.table or database.schema.table.
+- **How to fix it:** Write the table name, for example TAPSAccount (a prefix such as a2.dbo. is ignored).
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## TABLE_LIST_NOT_IN_SOURCE
 
 **Listed table not found in the source**
 
-- **What it means:** A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A schema.table or database.schema.table must match the source.
-- **How to fix it:** Correct the name (matching ignores case), or add the table to the source, or delete the entry.
+- **What it means:** A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A prefix such as a2.dbo. on the name is ignored.
+- **How to fix it:** Correct the table name (matching ignores case and any prefix such as a2.dbo.), or add the table to the source, or delete the entry.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## TABLE_LIST_UNREADABLE

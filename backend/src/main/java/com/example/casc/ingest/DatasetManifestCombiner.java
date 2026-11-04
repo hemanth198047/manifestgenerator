@@ -91,14 +91,14 @@ public final class DatasetManifestCombiner {
         if (selection.tables() != null && !selection.tables().isEmpty()) {
             Set<String> wanted = new HashSet<>();
             for (String t : selection.tables()) {
-                wanted.add(t.trim().toLowerCase(Locale.ROOT));
+                wanted.add(TableNames.bare(t).toLowerCase(Locale.ROOT));
             }
             Set<String> hit = new HashSet<>();
             for (Map<String, Object> d : found) {
-                String n = String.valueOf(d.get("name")).toLowerCase(Locale.ROOT);
+                String n = TableNames.bare(String.valueOf(d.get("name"))).toLowerCase(Locale.ROOT);
                 boolean chosenHere = false;
                 for (String w : wanted) {
-                    if (n.equals(w) || n.endsWith("." + w)) {        // table, schema.table or database.schema.table
+                    if (n.equals(w)) {        // the bare table names are compared; any prefix such as a2.dbo. is ignored
                         hit.add(w);
                         chosenHere = true;
                     }
@@ -108,9 +108,9 @@ public final class DatasetManifestCombiner {
                 }
             }
             for (String t : selection.tables()) {
-                if (!hit.contains(t.trim().toLowerCase(Locale.ROOT))) {
+                if (!hit.contains(TableNames.bare(t).toLowerCase(Locale.ROOT))) {
                     findings.add(Finding.warning("COMBINE_TABLE_NOT_FOUND", t.trim(), "No dataset for table '" + t.trim() + "' was found in the input, so it is not in the combined manifest.",
-                            "Check the spelling (matching ignores case; use the table name or schema.table)."));
+                            "Check the spelling (matching ignores case and any prefix such as a2.dbo.; use the table name)."));
                 }
             }
         } else if (selection.count() != null) {

@@ -82,13 +82,13 @@ Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest
 | `--manifest-input FILE` / `--sql-input FILE` | The tables: a manifest JSON, or SQL DDL (repeatable). Exactly one of the two |
 | `--dataset-output DIR` | Where the per-table manifests are written (required) |
 | `--table-metadata FILE` | CSV `table name, domain, boundary, upstream dataset, producer eonid` and an optional `description` column: which tables, and each one's domain, boundary, upstream and description. A file that includes the description is the complete metadata file, so no separate `--table-descriptions` is needed |
-| `--table-list FILE` | Generate only for the tables in FILE (a `table name` column, a one-column CSV, or a `.txt` with one table per line; `table`, `schema.table` or `database.schema.table`). `--table-metadata` then becomes optional |
+| `--table-list FILE` | Generate only for the tables in FILE (a `table name` column, a one-column CSV, or a `.txt` with one table per line; a prefix such as `a2.dbo.` on a name is ignored). `--table-metadata` then becomes optional |
 | `--domain TEXT`, `--boundary TEXT` | With `--table-list`: the domain (`Account (Operations DGC Glossary)`) and boundary for listed tables that have no row in `--table-metadata` |
 | `--table-descriptions FILE` | CSV/TSV with a table column (`table name`, `tables` or `table`) and a `description` column: each table's description (other columns are ignored). Only needed when the metadata file has no `description` column; if both give one, this file wins. Without a description the SQL comment or a generated one is used |
 | `--column-metadata FILE` | CSV `table name, column name, system data element`: supplies `systemDataElements` per column (fills what SQL cannot, replaces a manifest's own value) |
 | `--no-upstream` | Write no `upstreamDatasets`; the metadata CSV then needs only `table name, domain, boundary` |
 | `--database-name NAME`, `--schema-name NAME` | The database and schema parts of every dataset name. **Every dataset is named `a2.dbo.<tableName>` by default**, whatever database and schema the source uses; these two options replace `a2` and `dbo` (for example `--database-name TRADE_DB --schema-name sales` gives `TRADE_DB.sales.<tableName>`) |
-| `--default-schema S` | Schema to assume for SQL tables that have none, so that a `schema.table` in `--table-list` can still match them. It does not change the dataset name (see `--schema-name`) |
+| `--default-schema S` | Accepted for compatibility; table prefixes are ignored when matching, so it no longer affects the dataset manifests (the name comes from `--database-name` and `--schema-name`) |
 | `--dialect D` | SQL dialect (as for reading sources) |
 | `--combine-output FILE` | Also write one combined manifest |
 | `--combine-count N` / `--combine-tables A,B,...` | Combine only the first N datasets / only the named tables (not both) |
@@ -101,7 +101,7 @@ The run ends with a summary (tables read, rows or listed tables, manifests gener
 `casc-generator combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`
 
 Merges the `datasets` of several dataset manifests into one `{"datasets": [...]}` file. A folder contributes its `.json` files in name order. All datasets by default; `--count N` takes the first N,
-`--tables` takes the named tables (table name, `schema.table` or `database.schema.table`, case ignored); not both. A dataset name already present is not added twice.
+`--tables` takes the named tables (the table name; a prefix such as `a2.dbo.` is ignored; case ignored); not both. A dataset name already present is not added twice.
 
 ## json
 `casc-generator json OPERATION --input FILE [options]` (`json` alone lists the operations).

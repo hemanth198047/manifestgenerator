@@ -91,7 +91,7 @@ public final class FindingGuide {
           "docs/INGESTION.md (Combining dataset manifests)");
         e("COMBINE_TABLE_NOT_FOUND", "Requested table not found",
           "A table named in --tables has no dataset in the input, so it is not in the combined manifest.",
-          "Check the spelling (matching ignores case; use the table name or schema.table).",
+          "Check the spelling (matching ignores case and any prefix such as a2.dbo.; use the table name).",
           "docs/INGESTION.md (Combining dataset manifests)");
         e("CSV_BLANK_HEADER", "A column header is blank",
           "A header cell is empty, so the tool named it automatically.",
@@ -119,7 +119,7 @@ public final class FindingGuide {
           "docs/INGESTION.md");
         e("DATASET_NAME_DUPLICATE", "Several tables get the same dataset name",
           "Every dataset is named database.schema.table with the fixed database and schema (default a2 and dbo), so tables with the same name from different schemas or databases of the source get the same dataset name. Their files are kept apart, but the names are identical.",
-          "Generate them separately (use --table-list with schema.table), or give them different names in the source.",
+          "Generate them from separate sources, or give them different names in the source.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("DATASET_SUMMARY", "Summary of a dataset-manifest run",
           "How many tables were read from the source, how many rows the metadata CSV has and how many manifests were generated. Only tables that have a metadata row are generated, so the number generated is at most the number of metadata rows.",
@@ -535,7 +535,7 @@ public final class FindingGuide {
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_DESCRIPTION_NOT_FOUND", "Description for a table that is not in the source",
           "The table in the descriptions file is not defined in the manifest or SQL, so its description was not used. This is expected when the file covers more tables than you generate.",
-          "Correct the name (matching ignores case), or delete the row.",
+          "Correct the table name (matching ignores case and any prefix such as a2.dbo.), or delete the row.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_DESCRIPTION_ROW_SKIPPED", "Table description row skipped",
           "A row is missing its table name or description, the table name is not usable, or the file is longer than the supported number of rows.",
@@ -559,11 +559,11 @@ public final class FindingGuide {
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_LIST_ENTRY_SKIPPED", "Table list entry skipped",
           "An entry is not a usable table name.",
-          "Write the table as table, schema.table or database.schema.table.",
+          "Write the table name, for example TAPSAccount (a prefix such as a2.dbo. is ignored).",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_LIST_NOT_IN_SOURCE", "Listed table not found in the source",
-          "A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A schema.table or database.schema.table must match the source.",
-          "Correct the name (matching ignores case), or add the table to the source, or delete the entry.",
+          "A table in the table list is not defined in the manifest or SQL (or is a view), so no manifest was generated for it. A prefix such as a2.dbo. on the name is ignored.",
+          "Correct the table name (matching ignores case and any prefix such as a2.dbo.), or add the table to the source, or delete the entry.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_LIST_UNREADABLE", "Table list unusable",
           "The table list could not be read, has no rows or contains no table names.",

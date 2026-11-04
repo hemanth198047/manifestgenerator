@@ -17,7 +17,7 @@ This skill runs the locally built `casc-generator` command line tool. It is not 
 1. **Where do the tables come from?** A CasC manifest JSON (read from `databases[].schemas[].tables[].physicalName`), or SQL DDL files (`CREATE TABLE` statements).
 2. **Which tables, and their domain, boundary and upstream?** One of:
    - a **table metadata CSV** (`--table-metadata`): header `table name, domain, boundary, upstream dataset, producer eonid` and optionally `description`; one row per table to generate. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary;
-   - a **table list** (`--table-list`): only the listed tables are generated; a `table name` column, a one-column CSV, or a `.txt` with one table per line; each as `table`, `schema.table` or `database.schema.table`. Listed tables without a metadata row take `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` and have no upstream dataset;
+   - a **table list** (`--table-list`): only the listed tables are generated; a `table name` column, a one-column CSV, or a `.txt` with one table per line; a prefix such as `a2.dbo.` on a name is ignored (tables are compared by the bare table name). Listed tables without a metadata row take `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` and have no upstream dataset;
    - or both: a metadata row overrides the defaults for its table, and the list decides which tables are generated.
 3. **Do the tables have upstream datasets?** If not, use `--no-upstream`: no `upstreamDatasets` is written and the metadata CSV needs only `table name, domain, boundary`.
 4. **Table descriptions?** Best: one **complete metadata file** (`--table-metadata complete_table_meta.csv`) that has a `description` column next to table name, domain, boundary, upstream dataset and producer eonid; then nothing else is needed. Otherwise a separate `--table-descriptions DESCRIPTIONS.csv` (a table column and a `description` column; other columns are ignored), which wins if both give a description. Without either, the description is the SQL comment, or is generated from the table name.
@@ -34,7 +34,7 @@ or, with the tables read from SQL:
 `run-cli ingest --sql-input SCHEMA.sql [--sql-input MORE.sql ...] [--default-schema SCHEMA] [--dialect oracle|db2|postgresql|sybase|snowflake|teradata|sqlserver] --dataset-output OUT_DIR [--table-metadata META.csv] [--table-list TABLES.csv [--domain TEXT] [--boundary TEXT]] [--table-descriptions DESCRIPTIONS.csv] [--column-metadata COLUMNS.csv] [--no-upstream] [--database-name DB] [--schema-name S] [--overwrite]`
 
 - Give exactly one of `--manifest-input` or `--sql-input`. `--dataset-output` is always required, plus `--table-metadata` and/or `--table-list`. `--domain` and `--boundary` only work with `--table-list`.
-- With SQL: `--default-schema` only helps a `schema.table` in the table list match SQL tables that have no schema; it does not change the dataset name. A column's `description` comes from a SQL comment when there is one. Views are skipped.
+- With SQL: the database and schema in the SQL do not appear in the dataset name. Table names are compared by the bare table name in every input and in the source: a prefix such as `a2.dbo.` is ignored, so `a2.dbo.TAPSAccount` in a CSV matches `TAPSAccount` in the manifest. A column's `description` comes from a SQL comment when there is one. Views are skipped.
 - Exit codes: 0 ok, 1 validation errors (nothing written), 2 usage error, 3 I/O or parse failure, 4 internal error.
 
 ## Combining into one manifest

@@ -9,12 +9,12 @@ import java.util.Set;
 
 /**
  * A list of the tables to generate dataset manifests for: a CSV/TSV with a "table name" column, a one-column file, or a text file with one table per line
- * (blank lines and lines starting with # are ignored). A name may be written table, schema.table or database.schema.table; the extra parts narrow the match.
+ * (blank lines and lines starting with # are ignored). A name may carry a prefix such as a2.dbo.; the prefix is ignored and only the table name is used.
  */
 public final class TableListCsv {
     private TableListCsv() {}
 
-    /** qualifier is "schema" or "database.schema" (null when only the table name was given). */
+    /** The bare table name; any prefix (a2.dbo.) was removed. qualifier is always null (kept for compatibility). */
     public record Entry(String table, String qualifier, int line) {}
 
     public record Result(List<Entry> entries, List<Finding> findings) {}
@@ -83,12 +83,11 @@ public final class TableListCsv {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < names.size(); i++) {
             String n = names.get(i);
-            int dot = n.lastIndexOf('.');
-            String table = dot >= 0 ? n.substring(dot + 1).trim() : n;
-            String qualifier = dot >= 0 ? n.substring(0, dot).trim() : null;
-            if (table.isEmpty() || qualifier != null && qualifier.isEmpty()) {
+            String table = TableNames.bare(n);
+            String qualifier = null;
+            if (table.isEmpty()) {
                 findings.add(Finding.warning("TABLE_LIST_ENTRY_SKIPPED", in.name() + ":line " + lines.get(i), "'" + n + "' is not a usable table name and was skipped.",
-                        "Write the table as table, schema.table or database.schema.table."));
+                        "Write the table name, for example TAPSAccount (a prefix such as a2.dbo. is ignored)."));
                 continue;
             }
             if (!seen.add(((qualifier == null ? "" : qualifier + ".") + table).toLowerCase(Locale.ROOT))) {

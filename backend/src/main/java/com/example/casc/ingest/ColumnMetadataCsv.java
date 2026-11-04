@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Optional external column metadata for dataset-manifest generation: one row per column with its system data element.
  * Header: table name, column name, system data element (names are matched ignoring case, spaces and punctuation).
- * "table name" may be written schema.table; only the part after the last period is used for matching.
+ * A prefix such as a2.dbo. on the table name is ignored; only the bare table name is used for matching.
  * A value given here replaces the one from the source (a manifest JSON's systemDataElement) and fills in what SQL cannot supply.
  */
 public final class ColumnMetadataCsv {
@@ -80,8 +80,7 @@ public final class ColumnMetadataCsv {
                 }
                 continue;
             }
-            int dot = table.lastIndexOf('.');
-            String t = (dot >= 0 ? table.substring(dot + 1) : table).toLowerCase(Locale.ROOT);
+            String t = TableNames.bare(table).toLowerCase(Locale.ROOT);
             Map<String, Entry> cols = out.computeIfAbsent(t, x -> new HashMap<>());
             String c = column.toLowerCase(Locale.ROOT);
             if (cols.containsKey(c)) {

@@ -600,7 +600,7 @@ public final class Tools {
                         "domain", text("With tableList: default domain, e.g. Account (Operations DGC Glossary)."), "boundary", text("With tableList: default boundary."),
                         "tableDescriptions", text("CSV with a table column and a description column."), "columnMetadata", text("CSV: table name, column name, system data element."),
                         "noUpstream", flag("Write no upstreamDatasets (the metadata then needs only table name, domain, boundary)."), "databaseName", text("Replace a2 in the dataset names."),
-                        "schemaName", text("Replace dbo in the dataset names."), "defaultSchema", text("Schema to assume for SQL tables without one (only helps matching a schema.table in tableList)."),
+                        "schemaName", text("Replace dbo in the dataset names."), "defaultSchema", text("Accepted for compatibility; it no longer affects the result (table prefixes are ignored)."),
                         "dialect", oneOf("SQL dialect (default auto).", DIALECTS), "outputDir", text("Folder for the per-table manifests, relative to the root."),
                         "combineOutput", text("Also write one combined manifest to this file."), "combineCount", whole("Combine only the first N datasets."),
                         "combineTables", texts("Combine only these tables."), "combinedOnly", flag("With combineOutput: do not write the per-table files.")),
@@ -664,7 +664,7 @@ public final class Tools {
                 }, "outputDir");
         add("combine_datasets", "Combine dataset manifests", "Combine the datasets of several dataset manifests into one manifest: all of them, the first N, or only named tables. Two steps: plan, then confirm.",
                 props("inputs", texts("Dataset manifest files or folders (a folder contributes its .json files in name order)."), "output", text("The combined manifest file."),
-                        "count", whole("Combine only the first N datasets."), "tables", texts("Combine only these tables (table, schema.table or database.schema.table).")), true, (a, c, argv) -> {
+                        "count", whole("Combine only the first N datasets."), "tables", texts("Combine only these tables (the table name; a prefix such as a2.dbo. is ignored).")), true, (a, c, argv) -> {
                     List<String> inputs = a.list("inputs");
                     if (inputs.isEmpty()) {
                         throw new ToolError("'inputs' needs at least one file or folder.");

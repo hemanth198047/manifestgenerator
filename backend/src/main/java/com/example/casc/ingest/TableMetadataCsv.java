@@ -70,7 +70,7 @@ public final class TableMetadataCsv {
         for (int k = 1; k < r.records().size(); k++) {
             List<String> rec = r.records().get(k);
             int line = r.lines().get(k);
-            String table = cell(rec, idx.get("table"));
+            String table = TableNames.bare(cell(rec, idx.get("table")));
             if (table.isEmpty()) {
                 findings.add(Finding.warning("METADATA_ROW_SKIPPED", in.name() + ":line " + line, "A row without a table name was skipped.",
                         "Fill in the table name or remove the row."));

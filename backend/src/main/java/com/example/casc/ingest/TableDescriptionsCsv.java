@@ -9,12 +9,12 @@ import java.util.Set;
 
 /**
  * Descriptions of tables for dataset-manifest generation: a CSV/TSV with a table column (table name, tables, table) and a description column
- * (description, descriptions, table description). Other columns are ignored. A table may be written table, schema.table or database.schema.table.
+ * (description, descriptions, table description). Other columns are ignored. A prefix such as a2.dbo. on a table name is ignored.
  */
 public final class TableDescriptionsCsv {
     private TableDescriptionsCsv() {}
 
-    /** qualifier is "schema" or "database.schema" (null when only the table name was given). */
+    /** The bare table name; any prefix (a2.dbo.) was removed. qualifier is always null (kept for compatibility). */
     public record Entry(String table, String qualifier, String description, int line) {}
 
     public record Result(List<Entry> entries, List<Finding> findings) {
@@ -74,12 +74,11 @@ public final class TableDescriptionsCsv {
                         "A row is missing its " + (name.isEmpty() ? "table name" : "description") + " and was skipped.", "Fill in both values or delete the row."));
                 continue;
             }
-            int dot = name.lastIndexOf('.');
-            String table = dot >= 0 ? name.substring(dot + 1).trim() : name;
-            String qualifier = dot >= 0 ? name.substring(0, dot).trim() : null;
-            if (table.isEmpty() || qualifier != null && qualifier.isEmpty()) {
+            String table = TableNames.bare(name);
+            String qualifier = null;
+            if (table.isEmpty()) {
                 findings.add(Finding.warning("TABLE_DESCRIPTION_ROW_SKIPPED", in.name() + ":line " + line, "'" + name + "' is not a usable table name and was skipped.",
-                        "Write the table as table, schema.table or database.schema.table."));
+                        "Write the table name, for example TAPSAccount (a prefix such as a2.dbo. is ignored)."));
                 continue;
             }
             if (!seen.add(((qualifier == null ? "" : qualifier + ".") + table).toLowerCase(Locale.ROOT))) {

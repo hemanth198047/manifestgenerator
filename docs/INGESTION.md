@@ -112,13 +112,15 @@ ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MO
        [--no-upstream] [--database-name DB] [--schema-name S] [--combine-output FILE ...] [--overwrite]
 ```
 
+**Table names are compared by the bare table name.** In every input (metadata CSV, table list, descriptions file, column metadata CSV, `combine --tables`) and in the source itself, a prefix such as `a2.dbo.` is ignored: `a2.dbo.TAPSAccount`, `dbo.TAPSAccount`, `[dbo].[TAPSAccount]`, `"dbo"."TAPSAccount"` and `TAPSAccount` are the same table. Names are matched ignoring case.
+
 **Where the tables come from (give one).**
 - `--manifest-input FILE`: the `databases[].schemas[].tables[]` section of a manifest JSON. A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently (`MANIFEST_LENIENT_READ`).
-- `--sql-input FILE` (repeatable): `CREATE TABLE` statements, read by the normal SQL reader. A column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one. SQL has no system data elements, so `systemDataElements` is left out unless `--column-metadata` supplies them. Views are skipped (`DATASET_VIEW_SKIPPED`). A schema in the SQL (or `--default-schema`) is only used to match a `schema.table` in `--table-list`; it does not appear in the dataset name.
+- `--sql-input FILE` (repeatable): `CREATE TABLE` statements, read by the normal SQL reader. A column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one. SQL has no system data elements, so `systemDataElements` is left out unless `--column-metadata` supplies them. Views are skipped (`DATASET_VIEW_SKIPPED`). The database and schema in the SQL do not appear in the dataset name and are not used for matching.
 
 **Which tables are generated, and their domain, boundary and upstream (give at least one).**
 - `--table-metadata FILE`: CSV with the header `table name, domain, boundary, upstream dataset, producer eonid` (case and spacing ignored), plus an **optional `description` column**. A file with the description in it is the *complete* metadata file: it alone gives each table's domain, boundary, upstream and description, so no separate descriptions file is needed. Accepted header names: table (`table name`, `tables`, `table`), `description` (`descriptions`, `table description`), `domain`, `boundary`, `upstream dataset`, `producer eonid`; the producer eonid column is optional (a missing value is reported per table). A domain that starts with a stray character such as `.Account` is cleaned and reported (`METADATA_DOMAIN_CLEANED`). **One manifest per table that has a row.** A domain written `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
-- `--table-list FILE`: the tables to generate, as a CSV or TSV with a `table name` column, a one-column file, or a `.txt` with one table per line (blank lines and `#` lines ignored). A name may be `table`, `schema.table` or `database.schema.table`; the extra parts must match the source.
+- `--table-list FILE`: the tables to generate, as a CSV or TSV with a `table name` column, a one-column file, or a `.txt` with one table per line (blank lines and `#` lines ignored). A name may carry a prefix such as `a2.dbo.`; the prefix is ignored and only the table name is compared.
   Only listed tables are generated. A listed table takes its domain, boundary and upstream from its row in `--table-metadata` when it has one; otherwise `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` are used and it has no upstream dataset.
   With a table list, `--table-metadata` can be left out. Listed tables that are not in the source give `TABLE_LIST_NOT_IN_SOURCE`.
 - A metadata row whose table is not in the source is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a source table that is not selected is not generated (info `TABLE_WITHOUT_METADATA`).
@@ -127,7 +129,7 @@ ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MO
 - `name` = `a2.dbo.<tableName>`: **every dataset is named `a2.dbo.` followed by the table name**, whatever database and schema the source has. `--database-name DB` and `--schema-name S` replace `a2` and `dbo` (for example `TRADE_DB.sales.<tableName>`).
   If two tables with the same name come from different schemas of the source they get the same dataset name; this is reported (`DATASET_NAME_DUPLICATE`) and their files are kept apart.
 - `description`, first found of: `--table-descriptions FILE` (a row for the table), the `description` column of `--table-metadata`, the table's own description in the source (a SQL comment), else generated from the table name.
-  The file is a CSV or TSV with a table column (`table name`, `tables` or `table`) and a `description` column; other columns are ignored; a table may be `table`, `schema.table` or `database.schema.table`. Rows for tables that are not in the source are reported (`TABLE_DESCRIPTION_NOT_FOUND`);
+  The file is a CSV or TSV with a table column (`table name`, `tables` or `table`) and a `description` column; other columns are ignored; a prefix such as `a2.dbo.` on the table name is ignored. Rows for tables that are not in the source are reported (`TABLE_DESCRIPTION_NOT_FOUND`);
   generated datasets without a row are counted (`TABLE_DESCRIPTION_DEFAULT_USED`).
 - `format` = `ResultSet`; `boundaries` = `[{product:[boundary]}]`; `dgcDataDomains`; `upstreamDatasets` = `[{name, producerEonId}]` (left out with `--no-upstream`);
   `datasetElements` (one per column: `name`, `description` and `systemDataElements: [<system data element>]`; both are left out when the column has no system data element);
@@ -135,7 +137,7 @@ ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MO
 
 **Options.**
 - `--no-upstream`: no `upstreamDatasets`; the `upstream dataset` and `producer eonid` columns of the metadata CSV become optional (the header then needs only `table name, domain, boundary`).
-- `--column-metadata FILE`: CSV `table name, column name, system data element` (`table name` may be `schema.table`). Each value becomes the column's `systemDataElements: [value]`; it fills what SQL cannot supply and, with a manifest JSON, replaces the manifest's own `systemDataElement`.
+- `--column-metadata FILE`: CSV `table name, column name, system data element` (a prefix such as `a2.dbo.` on the table name is ignored). Each value becomes the column's `systemDataElements: [value]`; it fills what SQL cannot supply and, with a manifest JSON, replaces the manifest's own `systemDataElement`.
   When the column has no other description, the same text is its `description`. Rows that match nothing give `COLUMN_METADATA_NOT_FOUND`.
 - `--combine-output FILE` (with `--combine-count N` or `--combine-tables A,B,...`, and `--combined-only`): also write one combined manifest; see *Combining dataset manifests* below.
 - `--overwrite`: replace existing files.
@@ -147,6 +149,6 @@ Errors (missing columns, no tables, unreadable files) write nothing. Examples: `
 Merge the `datasets` of several dataset manifests into one manifest (`{"datasets": [ ... ]}`), either afterwards or while generating.
 - **Afterwards:** `combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]`. A directory contributes its `.json` files (sorted by name; the output file itself is skipped).
 - **While generating:** add `--combine-output FILE` to `ingest --manifest-input/--sql-input ...`; add `--combined-only` to skip the per-table files. `--combine-count` and `--combine-tables` work as below.
-- **Which datasets:** all by default. `--count N` (`--combine-count N` with ingest) takes the first N datasets in input order. `--tables A,B` (`--combine-tables`) takes only the named tables (table name, `schema.table` or `database.schema.table`, case ignored). Use one of the two, not both.
+- **Which datasets:** all by default. `--count N` (`--combine-count N` with ingest) takes the first N datasets in input order. `--tables A,B` (`--combine-tables`) takes only the named tables (the table name; a prefix such as `a2.dbo.` is ignored; case ignored). Use one of the two, not both.
 - A dataset name that is already in the result is not added twice (`COMBINE_DUPLICATE_DATASET`); files without `datasets` are skipped (`COMBINE_FILE_SKIPPED`); other top-level fields are not carried over (`COMBINE_FIELD_DROPPED`); the last info line (`COMBINE_SUMMARY`) says how many were read and combined.
 - The command refuses to replace an existing output file unless `--overwrite` is given. Nothing is written when there is an error.

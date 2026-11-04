@@ -20,7 +20,7 @@ description: Combines the datasets of several dataset manifests (such as the man
 
 - `--input` is a folder (its `.json` files are read in name order; the output file is skipped) or a file; repeat it for several.
 - **All datasets:** give neither `--count` nor `--tables`.
-- **Only some:** `--count N` takes the first N datasets in input order; `--tables A,B,C` takes only those tables (table name, `schema.table` or `database.schema.table`, case ignored). Use one of the two, not both.
+- **Only some:** `--count N` takes the first N datasets in input order; `--tables A,B,C` takes only those tables (the table name; a prefix such as `a2.dbo.` is ignored; case ignored). Use one of the two, not both.
 - The result is one manifest `{"datasets": [ ... ]}`. A dataset name already in the result is not added twice.
 - Without `--overwrite` the command refuses to replace an existing output file. Exit codes: 0 ok, 1 errors (nothing written), 2 usage error, 3 I/O error, 4 internal error.
 

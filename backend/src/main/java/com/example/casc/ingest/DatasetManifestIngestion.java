@@ -161,6 +161,12 @@ public final class DatasetManifestIngestion {
         }
         ColumnMetadataCsv.Result colMeta = columnCsv == null ? ColumnMetadataCsv.Result.empty() : ColumnMetadataCsv.parse(columnCsv);
         findings.addAll(colMeta.findings());
+        // table names are compared by the bare name only: a prefix such as a2.dbo. in the source is ignored too
+        List<Table> bareTables = new ArrayList<>();
+        for (Table t : sourceTables) {
+            bareTables.add(new Table(t.database(), t.schema(), TableNames.bare(t.name()), t.description(), t.columns()));
+        }
+        sourceTables = bareTables;
         String prefix = (databaseName == null || databaseName.isBlank() ? DEFAULT_DATABASE : databaseName.trim()) + "."
                 + (schemaName == null || schemaName.isBlank() ? DEFAULT_SCHEMA : schemaName.trim()) + ".";
         List<Table> allTables = applyColumnMetadata(sourceTables, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
@@ -231,7 +237,7 @@ public final class DatasetManifestIngestion {
                 if (list != null) {
                     findings.add(Finding.warning("TABLE_LIST_NOT_IN_SOURCE", listInput.name() + ":line " + row.line(),
                             "Table '" + shown + "' is not defined in " + sourceName + ", so no manifest was generated for it.",
-                            "Correct the name in the table list (names are matched ignoring case; a schema.table or database.schema.table must match the source), or add the table to "
+                            "Correct the name in the table list (names are matched ignoring case, and a prefix such as a2.dbo. is ignored), or add the table to "
                                     + sourceName + ". If " + sourceName + " defines it as a view, only tables are mapped. Details: docs/FINDINGS.md (TABLE_LIST_NOT_IN_SOURCE)."));
                 } else {
                     findings.add(Finding.warning("METADATA_TABLE_NOT_IN_MANIFEST", metaName + ":line " + row.line(),
@@ -280,7 +286,7 @@ public final class DatasetManifestIngestion {
             if (e.getValue() > 1) {
                 findings.add(Finding.warning("DATASET_NAME_DUPLICATE", sourceName, e.getValue() + " tables of " + sourceName + " (from different schemas or databases) all get the dataset name '" + e.getKey()
                         + "', because every dataset is named " + prefix + "tableName. Their files are kept apart, but the names are the same.",
-                        "Generate them separately (use --table-list with schema.table) or give them different names in the source."));
+                        "Generate them from separate sources, or give them different names in the source."));
             }
         }
         Set<String> described = new HashSet<>();

@@ -314,11 +314,11 @@ public final class DatasetManifestTests {
             eq(1, bare.manifests().size());
             yes(has(bare, "METADATA_VALUE_MISSING"), "no domain or boundary");
         });
-        test("table list: .txt, one-column CSV and qualified names; wrong qualifier or header is reported", () -> {
+        test("table list: .txt, one-column CSV and prefixed names (the prefix is ignored); a missing header is reported", () -> {
             var sel = new DatasetManifestIngestion.TableSelection(SourceInput.of("t.txt", "# my tables\n\na2oltp.TAPSAccount\nTBD.a2oltp.CanadaReportingJurisdiction\nother.TAPSAccount\n"), "Account", "F");
             var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null, sel);
             eq(2, r.manifests().size());
-            yes(has(r, "TABLE_LIST_NOT_IN_SOURCE"), "other.TAPSAccount has the wrong schema");
+            yes(has(r, "TABLE_LIST_DUPLICATE"), "other.TAPSAccount is the same table as a2oltp.TAPSAccount once the prefix is ignored");
             var one = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null,
                     new DatasetManifestIngestion.TableSelection(SourceInput.of("t.csv", "TAPSAccount\nCanadaReportingJurisdiction\n"), "Account", "F"));
             eq(2, one.manifests().size());
@@ -366,6 +366,39 @@ public final class DatasetManifestTests {
             var bad = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null,
                     new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,notes\nTAPSAccount,x\n")));
             yes(has(bad, "TABLE_DESCRIPTIONS_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a description column");
+        });
+        test("prefixes like a2.dbo. are ignored everywhere: metadata, table list, descriptions, column metadata, the source and combine --tables", () -> {
+            String meta = "table name,description,domain,boundary\na2.dbo.TAPSAccount,Prefixed in the metadata,Account,F\n[dbo].[CanadaReportingJurisdiction],Quoted,Account,F\n";
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), SourceInput.of("c.csv",
+                    "table name,column name,system data element\nx.y.TAPSAccount,accountID,Account ID\n"), false, null, null);
+            yes(!r.hasErrors(), r.findings().toString());
+            eq(2, r.manifests().size());
+            yes(!has(r, "METADATA_TABLE_NOT_IN_MANIFEST"), "prefixed names match the bare table names");
+            Map<String, Object> a = dataset(r.manifests().get(0));
+            eq("a2.dbo.TAPSAccount", a.get("name"));
+            eq("Prefixed in the metadata", a.get("description"));
+            contains(r.manifests().get(0).content(), "\"systemDataElements\": [");
+            eq("a2.dbo.CanadaReportingJurisdiction", dataset(r.manifests().get(1)).get("name"));
+            // table list and descriptions file with prefixes
+            var sel = new DatasetManifestIngestion.TableSelection(SourceInput.of("l.txt", "a2.dbo.TAPSAccount\n\"dbo\".\"CanadaReportingJurisdiction\"\n"), "Account", "F",
+                    SourceInput.of("d.csv", "Tables,Description\nsome.prefix.TAPSAccount,From the descriptions file\n"));
+            var l = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null, sel);
+            eq(2, l.manifests().size());
+            eq("From the descriptions file", dataset(l.manifests().get(0)).get("description"));
+            yes(!has(l, "TABLE_LIST_NOT_IN_SOURCE") && !has(l, "TABLE_DESCRIPTION_NOT_FOUND"), l.findings().toString());
+            // a prefix in the source's own table name is ignored too, and not doubled in the dataset name
+            String prefixedSource = STRICT.replace("\"physicalName\":\"TAPSAccount\"", "\"physicalName\":\"a2.dbo.TAPSAccount\"");
+            var ps = DatasetManifestIngestion.generate(SourceInput.of("m.json", prefixedSource), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null, null);
+            eq("a2.dbo.TAPSAccount", dataset(ps.manifests().get(0)).get("name"));
+            eq("manifest_TAPSAccount.json", ps.manifests().get(0).fileName());
+            // combine --tables ignores prefixes
+            for (String w : List.of("TAPSAccount", "x.TAPSAccount", "p.q.TAPSAccount", "[dbo].[TAPSAccount]")) {
+                var c = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", r.manifests().get(0).content())), new DatasetManifestCombiner.Selection(null, List.of(w)));
+                eq(1, c.datasets());
+            }
+            eq("TAPSAccount", TableNames.bare(" a2 . dbo . TAPSAccount "));
+            eq("Odd.Name", TableNames.bare("a2.dbo.\"Odd.Name\"").replace("\"", ""));
+            eq("T", TableNames.bare("`a2`.`T`"));
         });
         test("complete metadata file: description, domain clean-up, upstream and the order of description sources", () -> {
             String complete = "Tables,Description,Domain,Boundary,Upstream Dataset,Producer EON ID\r\n"
