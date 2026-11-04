@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "casc-generator": {
+      "type": "stdio",
+      "command": "java",
+      "args": [
+        "-jar",
+        "${workspaceFolder}/build/libs/casc-generator.jar",
+        "mcp",
+        "--root",
+        "${workspaceFolder}",
+        "--audit-log",
+        "${workspaceFolder}/build/casc-agent-audit.jsonl"
+      ]
+    }
+  }
+}

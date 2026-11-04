@@ -29,7 +29,8 @@ build/
 out/
 .idea/
 *.iml
-.vscode/
+.vscode/*
+!.vscode/mcp.json
 data/
 __pycache__/
 *.pyc

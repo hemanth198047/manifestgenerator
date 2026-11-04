@@ -24,7 +24,7 @@ public final class SkillFileTests {
             if (!Files.isDirectory(root)) {
                 throw new Skipped("run from the repository root to check the Copilot skills");
             }
-            Set<String> commands = Set.of("tool", "tools", "ingest", "validate", "export", "capabilities", "version", "help", "web", "explain", "combine", "json", "compare");
+            Set<String> commands = Set.of("tool", "tools", "ingest", "validate", "export", "capabilities", "version", "help", "web", "explain", "combine", "json", "compare", "mcp");
             Set<String> toolNames = Set.of("ingest_sources", "validate_manifest_payload", "generate_casc_manifest");
             List<Path> dirs;
             try (Stream<Path> s = Files.list(root)) {

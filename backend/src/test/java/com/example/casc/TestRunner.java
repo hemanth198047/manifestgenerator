@@ -21,6 +21,7 @@ public final class TestRunner {
         SkillFileTests.registerSync();
         SkillFileTests.registerFdcUpload();
         FindingGuideTests.register();
+        McpTests.register();
         JsonToolsTests.register();
         FuzzTests.register();
         AccessTests.register();

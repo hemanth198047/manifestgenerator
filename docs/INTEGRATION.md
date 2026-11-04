@@ -52,6 +52,7 @@ Typical flow for an agent: `ingest_sources`, show the findings, ask the user for
 Examples that are run by the test suite: `infrastructure/integrations/examples/`.
 
 ## Skill and instruction files
+- **Agent for GitHub Copilot**: `casc-generator mcp` (an MCP server), `.vscode/mcp.json`, the custom agent `.github/agents/casc-manifest-agent.agent.md` and prompt files in `.github/prompts/`; Copilot is the model. See `docs/AGENT.md`. (The `tools`/`tool` commands below are plain JSON contracts for scripts and are **not** MCP.)
 - **Claude**: the skill folders in `infrastructure/integrations/claude/`: `casc-manifest-generator` (the manifest workflow and agent tools), `casc-dataset-manifests`, `casc-combine-datasets`, `casc-json-tools`, `casc-compare-files` and `casc-explain-findings`. Copy the folders you want to `.claude/skills/` (project) or `~/.claude/skills/` (personal).
   The last five are the same files as the Copilot skills of the same name in `.github/skills/` (a test keeps them in step).
 - **GitHub Copilot**: `infrastructure/integrations/copilot/copilot-instructions.md` to `.github/copilot-instructions.md`, the `instructions/` folder to `.github/instructions/`, and the same skill folder to `.github/skills/casc-manifest-generator/`.

@@ -28,6 +28,10 @@ import com.example.casc.json.JsonException;
 import com.example.casc.json.JsonOps;
 import com.example.casc.json.JsonPath;
 import com.example.casc.json.LenientJson;
+import com.example.casc.mcp.Audit;
+import com.example.casc.mcp.McpServer;
+import com.example.casc.mcp.Sandbox;
+import com.example.casc.mcp.Tools;
 import com.example.casc.manifest.ManifestMapper.ReadResult;
 import com.example.casc.validation.Finding;
 import com.example.casc.validation.FindingGuide;
@@ -183,6 +187,8 @@ public final class Cli {
                     }
                     return tool(args[1], parse(args, 2, Set.of("--request", "--url-allow", "--url-timeout", "--url-max-bytes"),
                             Set.of("--fail-on-errors", "--url-allow-http")), in, out, err);
+                case "mcp":
+                    return mcp(parse(args, 1, Set.of("--root", "--audit-log"), Set.of("--read-only")), in, out, err);
                 case "web":
                     return web(parse(args, 1, Set.of("--bind", "--port", "--max-body-bytes", "--url-allow", "--url-timeout",
                             "--url-max-bytes"), Set.of("--url-allow-http", "--allow-clipboard")), out, err);
@@ -234,6 +240,7 @@ public final class Cli {
         p.println("         [--json-output FILE] [--path SECTION] [--key FIELD,...] [--title TEXT] [--max-rows N] [--lenient] [--fail-on-diff] [--overwrite]");
         p.println("Servers, agents and information");
         p.println("  web [--bind ADDR] [--port N] [--max-body-bytes N]   start the web UI (default 127.0.0.1:8080)");
+        p.println("  mcp [--root DIR] [--read-only] [--audit-log FILE]   MCP server on standard input/output for GitHub Copilot (VS Code, IntelliJ, CLI): the agent's tools");
         p.println("  tools                                                 list the agent tool contracts as JSON");
         p.println("  tool NAME --request FILE|-  [--fail-on-errors]       run ingest_sources, validate_manifest_payload or generate_casc_manifest;");
         p.println("         JSON in (file, or '-' for standard input), one JSON document out on standard output; [--url-allow HOST ...]");
@@ -955,6 +962,27 @@ public final class Cli {
             return IO;
         }
         return o.flags().contains("--fail-on-diff") && r.differing() > 0 ? INVALID : OK;
+    }
+
+    /** mcp [--root DIR] [--read-only] [--audit-log FILE]: the application's tools for an agent (GitHub Copilot), over standard input and output. */
+    private static int mcp(Opts o, InputStream in, PrintStream out, PrintStream err) throws UsageException {
+        String rootText = o.get("--root", null) != null ? o.get("--root", null) : getenv("CASC_INPUT_ROOT");
+        Path rootPath = Path.of(rootText == null || rootText.isBlank() ? "." : rootText).toAbsolutePath();
+        if (!Files.isDirectory(rootPath)) {
+            throw new UsageException("--root " + rootPath + " is not a folder.");
+        }
+        String auditText = o.get("--audit-log", null) != null ? o.get("--audit-log", null) : getenv("CASC_AUDIT_LOG");
+        try {
+            Sandbox sandbox = new Sandbox(rootPath, o.flags().contains("--read-only"));
+            Audit audit = auditText == null || auditText.isBlank() ? Audit.none() : new Audit(Path.of(auditText).toAbsolutePath());
+            String v = Cli.class.getPackage().getImplementationVersion();
+            err.println("casc-generator MCP server ready. Root: " + sandbox.root() + (sandbox.readOnly() ? " (read-only)" : "") + (auditText == null ? "" : ". Audit log: " + auditText));
+            new McpServer(new Tools(sandbox, audit), v == null ? "dev" : v).serve(in, out, err);
+            return OK;
+        } catch (IOException e) {
+            err.println("Error: " + e.getMessage());
+            return IO;
+        }
     }
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {

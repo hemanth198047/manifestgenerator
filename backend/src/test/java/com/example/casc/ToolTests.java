@@ -322,7 +322,7 @@ final class ToolTests {
             yes(desc.group(1).length() <= 1024, "description length " + desc.group(1).length());
             yes(text.lines().count() < 500, "body under 500 lines");
             contains(text, "not an MCP server");
-            Set<String> commands = Set.of("tool", "tools", "ingest", "validate", "export", "capabilities", "version", "help", "web", "explain", "combine", "json", "compare");
+            Set<String> commands = Set.of("tool", "tools", "ingest", "validate", "export", "capabilities", "version", "help", "web", "explain", "combine", "json", "compare", "mcp");
             Set<String> toolNames = Set.of("ingest_sources", "validate_manifest_payload", "generate_casc_manifest");
             Pattern cmd = Pattern.compile("run-cli\\s+(\\w+)(?:\\s+(\\w+))?");
             List<String> files = new ArrayList<>(List.of(text, lf(Files.readString(Path.of("infrastructure/integrations/copilot/copilot-instructions.md"), StandardCharsets.UTF_8)),

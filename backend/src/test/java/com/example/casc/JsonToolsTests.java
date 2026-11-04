@@ -154,7 +154,7 @@ public final class JsonToolsTests {
             }
             String text = Files.readString(doc, StandardCharsets.UTF_8);
             String help = run(0, "help");
-            for (String cmd : List.of("validate", "export", "explain", "ingest", "combine", "json", "compare", "tools", "tool", "web", "capabilities", "version")) {
+            for (String cmd : List.of("validate", "export", "explain", "ingest", "combine", "json", "compare", "tools", "tool", "mcp", "web", "capabilities", "version")) {
                 yes(help.contains("  " + cmd + " ") || help.contains(cmd), "help mentions " + cmd);
                 yes(text.contains("casc-generator " + cmd), "COMMANDS.md documents " + cmd);
             }

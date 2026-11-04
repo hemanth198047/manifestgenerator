@@ -7,7 +7,7 @@ Every command of the project in one place. Run them as `java -jar build/libs/cas
 - **Exit codes** (all commands): 0 ok, 1 validation errors (or a requested difference), 2 usage error, 3 I/O or parse failure, 4 internal error.
 - **Overwriting:** commands that write a file refuse to replace an existing one unless you add `--overwrite`. Files are written atomically (temporary file, then moved into place).
 - **Findings:** every warning or error has a code. `casc-generator explain CODE` says what it means and how to fix it; all codes are in `docs/FINDINGS.md`.
-- **Environment:** `CASC_BIND`, `CASC_PORT` (web), `CASC_INPUT_ROOT` (folder that `ingest` may read from), `CASC_URL_ALLOW` (comma separated hosts), `CASC_URL_TOKEN` (bearer token for URL sources), `JAVA_OPTS` (launchers).
+- **Environment:** `CASC_BIND`, `CASC_PORT` (web), `CASC_INPUT_ROOT` (folder that `ingest` may read from, and the root of `mcp`), `CASC_AUDIT_LOG` (audit log of `mcp`), `CASC_URL_ALLOW` (comma separated hosts), `CASC_URL_TOKEN` (bearer token for URL sources), `JAVA_OPTS` (launchers).
 
 | Command | What it does |
 |---------|--------------|
@@ -19,6 +19,7 @@ Every command of the project in one place. Run them as `java -jar build/libs/cas
 | [`json`](#json) | Extract sections from a JSON file and run operations on it |
 | [`compare`](#compare) | Compare several JSON files and write an HTML report |
 | [`tools`, `tool`](#tools-and-tool) | The three agent tool contracts (JSON in, JSON out) |
+| [`mcp`](#mcp) | MCP server for GitHub Copilot: the agent's tools (see `docs/AGENT.md`) |
 | [`web`](#web) | Start the web UI |
 | [`capabilities`, `version`, `help`](#capabilities-version-and-help) | Information |
 | [Build and test](#build-and-test) | Gradle and no-Gradle build, tests, verification |
@@ -174,6 +175,19 @@ Example: `casc-generator compare --input a/manifest.json --input b/manifest.json
 `casc-generator tools` lists the three tool contracts as JSON. `casc-generator tool NAME --request FILE|- [--fail-on-errors] [--url-allow HOST ...]` runs one:
 `ingest_sources`, `validate_manifest_payload` or `generate_casc_manifest`. The request is JSON from a file, or from standard input with `-`; the answer is one JSON envelope on standard output.
 They are ordinary commands, not an MCP server. `--fail-on-errors` returns exit 1 when the result has errors. Shapes and examples: `docs/INTEGRATION.md`, `infrastructure/integrations/examples/`.
+
+## mcp
+`casc-generator mcp [--root DIR] [--read-only] [--audit-log FILE]`
+
+An MCP server on standard input and output, for **GitHub Copilot** (VS Code, IntelliJ, Copilot CLI): Copilot is the model, the application provides the tools. It is normally started by Copilot from `.vscode/mcp.json`, not by hand.
+
+| Option | Meaning |
+|--------|---------|
+| `--root DIR` | The only folder the tools may read or write (default: `CASC_INPUT_ROOT`, else the current folder) |
+| `--read-only` | Offer only the read tools; every tool that writes is removed |
+| `--audit-log FILE` | One JSON line per tool call (default: `CASC_AUDIT_LOG`); file contents are never logged |
+
+Fourteen tools: `list_files`, `read_file`, `capabilities`, `explain_finding`, `validate_manifest`, `ingest_sources`, `json_inspect`, `compare_summary` (read) and `generate_dataset_manifests`, `combine_datasets`, `json_edit`, `compare_report`, `export_manifest`, `draft_manifest` (write, always in two steps: a plan, then a confirmation with the plan hash). Setup, usage and safety: `docs/AGENT.md`.
 
 ## web
 `casc-generator web [--bind ADDR] [--port N] [--max-body-bytes N] [--allow-clipboard] [--url-allow HOST ...] [--url-allow-http] [--url-timeout S] [--url-max-bytes N]`
