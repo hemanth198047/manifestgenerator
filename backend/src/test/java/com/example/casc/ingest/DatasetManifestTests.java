@@ -367,6 +367,61 @@ public final class DatasetManifestTests {
                     new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,notes\nTAPSAccount,x\n")));
             yes(has(bad, "TABLE_DESCRIPTIONS_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a description column");
         });
+        test("complete metadata file: description, domain clean-up, upstream and the order of description sources", () -> {
+            String complete = "Tables,Description,Domain,Boundary,Upstream Dataset,Producer EON ID\r\n"
+                    + "TAPSAccount, Stores TAPS account records ,.Account (Operations DGC Glossary),Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212\r\n"
+                    + "CanadaReportingJurisdiction,,Account,Firmwide,a2.dbo.C,3212\r\n";
+            var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("complete_table_meta.csv", complete), null, true, null, null);
+            yes(!r.hasErrors(), r.findings().toString());
+            eq(2, r.manifests().size());
+            Map<String, Object> a = dataset(r.manifests().get(0));
+            eq("Stores TAPS account records", a.get("description"));
+            eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(a.get("dgcDataDomains")));
+            eq("[{\"name\":\"a2.dbo.TAPSAccount\",\"producerEonId\":3212}]", Json.writeCompact(a.get("upstreamDatasets")));
+            yes(has(r, "METADATA_DOMAIN_CLEANED"), "the stray '.' in the domain is reported");
+            eq("CanadaReportingJurisdiction table of the dbo schema", dataset(r.manifests().get(1)).get("description"));
+            yes(has(r, "TABLE_DESCRIPTION_DEFAULT_USED"), "one dataset has no description in the file");
+            // without a description column everything works as before
+            var plain = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary,upstream dataset,producer eonid\nTAPSAccount,Account,F,a2.dbo.T,3212\n"),
+                    null, true, null, null);
+            eq("TAPSAccount table of the dbo schema", dataset(plain.manifests().get(0)).get("description"));
+            yes(!has(plain, "TABLE_DESCRIPTION_DEFAULT_USED"), "no description source, no note");
+            // the producer eonid column is optional: the missing value is reported per table
+            var noEon = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,description,domain,boundary,upstream dataset\nTAPSAccount,D,Account,F,a2.dbo.T\n"),
+                    null, true, null, null);
+            yes(!noEon.hasErrors() && has(noEon, "METADATA_VALUE_MISSING"), noEon.findings().toString());
+            eq("[{\"name\":\"a2.dbo.T\"}]", Json.writeCompact(dataset(noEon.manifests().get(0)).get("upstreamDatasets")));
+            // order of sources: descriptions file > description column > SQL comment
+            String meta = "table name,description,domain,boundary\nTAPSAccount,From the metadata,Account,F\nPlain,,Account,F\n";
+            var sel = new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,description\nTAPSAccount,From the descriptions file\n"));
+            var both = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", SQL + "COMMENT ON TABLE Plain IS 'From the SQL';")), SourceInput.of("t.csv", meta),
+                    IngestOptions.defaults(), "a2oltp", null, false, null, null, sel);
+            eq("From the descriptions file", dataset(both.manifests().get(0)).get("description"));
+            eq("From the SQL", dataset(both.manifests().get(1)).get("description"));
+            var colOnly = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", SQL + "COMMENT ON TABLE TAPSAccount IS 'From the SQL';")), SourceInput.of("t.csv", meta),
+                    IngestOptions.defaults(), "a2oltp", null, false, null, null, null);
+            eq("From the metadata", dataset(colOnly.manifests().get(0)).get("description"));
+        });
+        test("complete metadata file: the CLI generates the manifests and combines all of them into one file", () -> {
+            Path dir = tempDir("casc-complete");
+            try {
+                Files.writeString(dir.resolve("m.json"), STRICT);
+                Files.writeString(dir.resolve("complete_table_meta.csv"), "table name,description,domain,boundary\nTAPSAccount,Stores TAPS account records,Account,Firmwide\nCanadaReportingJurisdiction,Canada jurisdictions,Account,Firmwide\n");
+                ByteArrayOutputStream o = new ByteArrayOutputStream();
+                PrintStream po = new PrintStream(o, true, StandardCharsets.UTF_8);
+                eq(0, Cli.run(new String[] {"ingest", "--manifest-input", dir.resolve("m.json").toString(), "--table-metadata", dir.resolve("complete_table_meta.csv").toString(), "--no-upstream",
+                        "--dataset-output", dir.resolve("out").toString(), "--combine-output", dir.resolve("combined.json").toString(), "--combined-only"}, InputStream.nullInputStream(), po, po, k -> null));
+                yes(!Files.exists(dir.resolve("out/manifest_TAPSAccount.json")), "--combined-only: no per-table files");
+                String combined = Files.readString(dir.resolve("combined.json"));
+                contains(combined, "\"name\": \"a2.dbo.TAPSAccount\"");
+                contains(combined, "\"name\": \"a2.dbo.CanadaReportingJurisdiction\"");
+                contains(combined, "\"description\": \"Stores TAPS account records\"");
+                contains(combined, "\"description\": \"Canada jurisdictions\"");
+                eq(2, ((List<?>) ((Map<?, ?>) Json.parse(combined)).get("datasets")).size());
+            } finally {
+                deleteTree(dir);
+            }
+        });
         test("descriptions: the CLI takes --table-descriptions together with a table list", () -> {
             Path dir = tempDir("casc-desc");
             try {

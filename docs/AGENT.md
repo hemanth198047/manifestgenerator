@@ -60,7 +60,7 @@ Agent: [calls it again with confirm=true and the planHash] Wrote 2 files. Summar
 | `ingest_sources` | read | read SQL/CSV/TSV/text/Markdown/OpenAPI and summarise |
 | `json_inspect` | read | keys, get (a section by path), stats, find, flatten, csv, validate |
 | `compare_summary` | read | compare JSON files, return counts and differences |
-| `generate_dataset_manifests` | **write** | one dataset manifest per table (all the `ingest` dataset options), optional combined file |
+| `generate_dataset_manifests` | **write** | one dataset manifest per table (all the `ingest` dataset options, including a complete metadata file that has the description column), optional combined file |
 | `combine_datasets` | **write** | combine dataset manifests: all, the first N, or named tables |
 | `json_edit` | **write** | set, delete, merge or format JSON into a **new** file |
 | `compare_report` | **write** | HTML (and optional JSON) comparison report |

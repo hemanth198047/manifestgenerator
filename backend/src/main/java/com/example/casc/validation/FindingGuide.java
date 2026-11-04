@@ -293,6 +293,10 @@ public final class FindingGuide {
           "The CSV lacks one of the five required columns.",
           "Use the header `table name, domain, boundary, upstream dataset, producer eonid` (with --no-upstream only `table name, domain, boundary` is needed).",
           "docs/INGESTION.md (Dataset manifests per table)");
+        e("METADATA_DOMAIN_CLEANED", "Domain started with a stray character",
+          "A domain in the metadata file started with a character that is not a letter or digit (for example '.Account'); the character was removed.",
+          "Correct the domain in the metadata file.",
+          "docs/INGESTION.md (Dataset manifests per table)");
         e("METADATA_DUPLICATE_TABLE", "Table listed twice in the metadata",
           "Only the first row for the table was used.",
           "Delete the duplicate row.",
@@ -521,9 +525,9 @@ public final class FindingGuide {
           "The table descriptions file could not be read or has no rows.",
           "Fix the file: a header with a table column and a description column, then one table per row.",
           "docs/INGESTION.md (Dataset manifests per table)");
-        e("TABLE_DESCRIPTION_DEFAULT_USED", "Datasets without a description from the file",
-          "Some generated datasets have no row in the descriptions file, so their description is the one in the source (a SQL comment) or is generated from the table name.",
-          "Add a row for each of those tables and run again with --overwrite.",
+        e("TABLE_DESCRIPTION_DEFAULT_USED", "Datasets without a description from the files",
+          "Some generated datasets have no description in the descriptions file or in the description column of the table metadata file, so their description is the one in the source (a SQL comment) or is generated from the table name.",
+          "Add a description for each of those tables and run again with --overwrite.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("TABLE_DESCRIPTION_DUPLICATE", "Table described twice",
           "The same table has more than one row in the descriptions file; the first one was used.",

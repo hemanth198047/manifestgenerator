@@ -596,7 +596,7 @@ public final class Tools {
         add("generate_dataset_manifests", "Generate dataset manifests", "Create one dataset manifest per table from a manifest JSON or SQL files, choosing the tables with a table metadata CSV and/or a table list; every dataset is named a2.dbo.<table> unless databaseName/schemaName are given. "
                         + "Optional: descriptions CSV, column metadata CSV (system data elements), no upstreams, one combined manifest. Two steps: the first call shows a plan, the second (confirm=true, planHash) writes.",
                 props("manifestInput", text("Manifest JSON with a databases section (use this or sqlInput)."), "sqlInput", texts("SQL DDL files (use this or manifestInput)."),
-                        "tableMetadata", text("CSV: table name, domain, boundary, upstream dataset, producer eonid."), "tableList", text("Only generate for the tables listed in this file."),
+                        "tableMetadata", text("CSV: table name, domain, boundary, upstream dataset, producer eonid, and optionally description (then no separate descriptions file is needed)."), "tableList", text("Only generate for the tables listed in this file."),
                         "domain", text("With tableList: default domain, e.g. Account (Operations DGC Glossary)."), "boundary", text("With tableList: default boundary."),
                         "tableDescriptions", text("CSV with a table column and a description column."), "columnMetadata", text("CSV: table name, column name, system data element."),
                         "noUpstream", flag("Write no upstreamDatasets (the metadata then needs only table name, domain, boundary)."), "databaseName", text("Replace a2 in the dataset names."),

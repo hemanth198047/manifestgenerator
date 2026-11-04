@@ -187,9 +187,9 @@ public final class DatasetManifestIngestion {
             for (TableListCsv.Entry e : list.entries()) {
                 Row m = metaByTable.get(e.table().toLowerCase(Locale.ROOT));
                 if (m != null) {
-                    rows.add(new Row(e.table(), m.domain(), m.glossary(), m.boundary(), m.upstreamDataset(), m.producerEonId(), m.line(), e.qualifier()));
+                    rows.add(new Row(e.table(), m.domain(), m.glossary(), m.boundary(), m.upstreamDataset(), m.producerEonId(), m.line(), e.qualifier(), m.description()));
                 } else {
-                    Row d = new Row(e.table(), dom[0], dom[1], selection.boundary() == null ? "" : selection.boundary().trim(), "", "", e.line(), e.qualifier());
+                    Row d = new Row(e.table(), dom[0], dom[1], selection.boundary() == null ? "" : selection.boundary().trim(), "", "", e.line(), e.qualifier(), "");
                     rows.add(d);
                     defaulted.add(d);
                 }
@@ -212,6 +212,7 @@ public final class DatasetManifestIngestion {
         java.util.Map<String, Integer> nameCount = new java.util.LinkedHashMap<>();
         Set<String> usedNames = new HashSet<>();
         List<Table> usedTables = new ArrayList<>();
+        Set<String> describedKeys = new HashSet<>();
         for (Row row : rows) {
             String key = ((row.qualifier() == null ? "" : row.qualifier() + ".") + row.table()).toLowerCase(Locale.ROOT);
             if (!seenRows.add(key)) {
@@ -250,20 +251,29 @@ public final class DatasetManifestIngestion {
                 nameCount.merge(prefix + t.name(), 1, Integer::sum);
                 usedTables.add(t);
                 String file = fileName(t, matches.size() > 1, usedNames);
-                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream, prefix)) + "\n"));
+                // description: the descriptions file, then the description column of the metadata file, then the source (a SQL comment), then a generated one
+                boolean fromFile = describedByFile.contains(tableKey(t));
+                boolean fromRow = !fromFile && !row.description().isEmpty();
+                if (fromFile || fromRow) {
+                    describedKeys.add(tableKey(t));
+                }
+                String description = fromRow ? row.description() : t.description();
+                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream, prefix, description)) + "\n"));
             }
         }
-        if (descInput != null) {
+        boolean rowsDescribe = rows.stream().anyMatch(r -> !r.description().isEmpty());
+        if (descInput != null || rowsDescribe) {
             int without = 0;
             for (Table t : usedTables) {
-                if (!describedByFile.contains(tableKey(t))) {
+                if (!describedKeys.contains(tableKey(t))) {
                     without++;
                 }
             }
             if (without > 0) {
-                findings.add(Finding.info("TABLE_DESCRIPTION_DEFAULT_USED", descInput.name(), without + " of the " + usedTables.size()
-                        + " generated dataset(s) have no row in " + descInput.name() + ", so their description comes from the source (a SQL comment) or is generated from the table name.",
-                        "Add a row for each of those tables to the table descriptions file and run again with --overwrite."));
+                String where = descInput != null && rowsDescribe ? descInput.name() + " or the description column of " + metaName : descInput != null ? descInput.name() : "the description column of " + metaName;
+                findings.add(Finding.info("TABLE_DESCRIPTION_DEFAULT_USED", descInput != null ? descInput.name() : metaName, without + " of the " + usedTables.size()
+                        + " generated dataset(s) have no description in " + where + ", so their description comes from the source (a SQL comment) or is generated from the table name.",
+                        "Add a description for each of those tables and run again with --overwrite."));
             }
         }
         for (java.util.Map.Entry<String, Integer> e : nameCount.entrySet()) {
@@ -422,10 +432,10 @@ public final class DatasetManifestIngestion {
         return s.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
-    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName, boolean includeUpstream, String prefix) {
+    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName, boolean includeUpstream, String prefix, String description) {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("name", prefix + t.name());
-        d.put("description", t.description() != null ? t.description()
+        d.put("description", description != null ? description
                 : t.name() + " table of the " + prefix.substring(prefix.indexOf('.') + 1, prefix.length() - 1) + " schema");
         d.put("format", FORMAT);
         if (!row.boundary().isEmpty()) {

@@ -552,6 +552,14 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Use the header `table name, domain, boundary, upstream dataset, producer eonid` (with --no-upstream only `table name, domain, boundary` is needed).
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
+## METADATA_DOMAIN_CLEANED
+
+**Domain started with a stray character**
+
+- **What it means:** A domain in the metadata file started with a character that is not a letter or digit (for example '.Account'); the character was removed.
+- **How to fix it:** Correct the domain in the metadata file.
+- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
+
 ## METADATA_DUPLICATE_TABLE
 
 **Table listed twice in the metadata**
@@ -1010,10 +1018,10 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 
 ## TABLE_DESCRIPTION_DEFAULT_USED
 
-**Datasets without a description from the file**
+**Datasets without a description from the files**
 
-- **What it means:** Some generated datasets have no row in the descriptions file, so their description is the one in the source (a SQL comment) or is generated from the table name.
-- **How to fix it:** Add a row for each of those tables and run again with --overwrite.
+- **What it means:** Some generated datasets have no description in the descriptions file or in the description column of the table metadata file, so their description is the one in the source (a SQL comment) or is generated from the table name.
+- **How to fix it:** Add a description for each of those tables and run again with --overwrite.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## TABLE_DESCRIPTION_DUPLICATE

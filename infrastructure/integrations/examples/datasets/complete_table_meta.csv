@@ -1,0 +1,3 @@
+table name,description,domain,boundary,upstream dataset,producer eonid
+TAPSAccount,Stores TAPS account records,Account (Operations DGC Glossary),Firmwide - *All Product Types,a2.dbo.TAPSAccount,3212
+CanadaReportingJurisdiction,Canada reporting jurisdictions,Account (Operations DGC Glossary),Firmwide - *All Product Types,a2.dbo.CanadaReportingJurisdiction,3212

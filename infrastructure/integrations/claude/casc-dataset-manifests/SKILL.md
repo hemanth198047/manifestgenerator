@@ -16,11 +16,11 @@ This skill runs the locally built `casc-generator` command line tool. It is not 
 ## What to ask the user
 1. **Where do the tables come from?** A CasC manifest JSON (read from `databases[].schemas[].tables[].physicalName`), or SQL DDL files (`CREATE TABLE` statements).
 2. **Which tables, and their domain, boundary and upstream?** One of:
-   - a **table metadata CSV** (`--table-metadata`): header `table name, domain, boundary, upstream dataset, producer eonid`; one row per table to generate. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary;
+   - a **table metadata CSV** (`--table-metadata`): header `table name, domain, boundary, upstream dataset, producer eonid` and optionally `description`; one row per table to generate. A domain written `Account (Operations DGC Glossary)` is split into domain and glossary;
    - a **table list** (`--table-list`): only the listed tables are generated; a `table name` column, a one-column CSV, or a `.txt` with one table per line; each as `table`, `schema.table` or `database.schema.table`. Listed tables without a metadata row take `--domain "Account (Operations DGC Glossary)"` and `--boundary TEXT` and have no upstream dataset;
    - or both: a metadata row overrides the defaults for its table, and the list decides which tables are generated.
 3. **Do the tables have upstream datasets?** If not, use `--no-upstream`: no `upstreamDatasets` is written and the metadata CSV needs only `table name, domain, boundary`.
-4. **Table descriptions?** `--table-descriptions DESCRIPTIONS.csv`: a table column (`table name`, `tables` or `table`) and a `description` column; other columns are ignored. Without it the description is the SQL comment, or is generated from the table name.
+4. **Table descriptions?** Best: one **complete metadata file** (`--table-metadata complete_table_meta.csv`) that has a `description` column next to table name, domain, boundary, upstream dataset and producer eonid; then nothing else is needed. Otherwise a separate `--table-descriptions DESCRIPTIONS.csv` (a table column and a `description` column; other columns are ignored), which wins if both give a description. Without either, the description is the SQL comment, or is generated from the table name.
 5. **System data elements?** A manifest JSON carries a `systemDataElement` per column. SQL does not, so offer `--column-metadata COLUMNS.csv` (header `table name, column name, system data element`); it also replaces a manifest's own value for the columns it lists.
 6. **Dataset name parts?** Every dataset is named `a2.dbo.<tableName>` by default, whatever database and schema the source has. Only if the user wants other parts, pass `--database-name DB` and/or `--schema-name S` (for example `TRADE_DB.sales.<tableName>`).
 7. Whether they also want everything (or only some datasets) combined into one manifest.
@@ -48,7 +48,8 @@ To get a single manifest holding the datasets, add `--combine-output COMBINED.js
    - `DATASET_NAME_DUPLICATE`: tables with the same name from different schemas of the source get the same dataset name `a2.dbo.<tableName>`; their files are kept apart.
    - `MANIFEST_TABLE_SKIPPED`: table entries without a `physicalName` could not be read.
    - `MANIFEST_LENIENT_READ`: the manifest had JSON syntax errors (for example trailing commas) and only its `databases` section was read.
-   - `TABLE_DESCRIPTION_NOT_FOUND` / `TABLE_DESCRIPTION_DEFAULT_USED`: a descriptions row matches no table / some datasets have no row in the descriptions file.
+   - `TABLE_DESCRIPTION_NOT_FOUND` / `TABLE_DESCRIPTION_DEFAULT_USED`: a descriptions row matches no table / some datasets have no description in the files.
+   - `METADATA_DOMAIN_CLEANED`: a domain started with a stray character (for example `.Account`) and was cleaned; ask the user to correct the file.
    - `COLUMN_METADATA_NOT_FOUND`: a row of the column metadata CSV matches no table or column; it was not used.
 4. If the command reports errors, say what each one means and how to fix the input; run again after the user fixes it (with `--overwrite` if files were already written). Never edit the user's inputs yourself.
 5. Each generated file holds one `datasets` entry: `name` (`a2.dbo.<tableName>` unless `--database-name` / `--schema-name` were given), `description`, `format` ResultSet, `boundaries`, `dgcDataDomains`, `upstreamDatasets` (name and `producerEonId`; absent with `--no-upstream`),

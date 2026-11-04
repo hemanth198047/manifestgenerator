@@ -18,7 +18,7 @@ public final class TableMetadataCsv {
     public static final String DEFAULT_GLOSSARY = "Operations DGC Glossary";
 
     public record Row(String table, String domain, String glossary, String boundary, String upstreamDataset,
-                      String producerEonId, int line, String qualifier) {}
+                      String producerEonId, int line, String qualifier, String description) {}
 
     public record Result(List<Row> rows, List<Finding> findings) {}
 
@@ -55,12 +55,12 @@ public final class TableMetadataCsv {
                 idx.putIfAbsent(key, i);
             }
         }
-        for (String need : List.of("table", "domain", "boundary", "upstream", "eon")) {
-            if (!idx.containsKey(need) && (requireUpstream || !(need.equals("upstream") || need.equals("eon")))) {
+        for (String need : List.of("table", "domain", "boundary", "upstream")) {
+            if (!idx.containsKey(need) && (requireUpstream || !need.equals("upstream"))) {
                 findings.add(Finding.error("METADATA_COLUMN_MISSING", in.name() + ":line " + r.lines().get(0),
                         "The metadata file has no '" + label(need) + "' column.",
-                        requireUpstream ? "Use the header: table name, domain, boundary, upstream dataset, producer eonid."
-                                : "Use the header: table name, domain, boundary (upstream dataset and producer eonid are optional with --no-upstream)."));
+                        requireUpstream ? "Use the header: table name, domain, boundary, upstream dataset, producer eonid (and, optionally, description)."
+                                : "Use the header: table name, domain, boundary (upstream dataset, producer eonid and description are optional with --no-upstream)."));
             }
         }
         if (!findings.isEmpty()) {
@@ -77,8 +77,14 @@ public final class TableMetadataCsv {
                 continue;
             }
             String[] dom = splitDomain(cell(rec, idx.get("domain")));
+            String cleaned = dom[0].replaceFirst("^[^\\p{L}\\p{N}]+", "");
+            if (!cleaned.equals(dom[0]) && !cleaned.isEmpty()) {
+                findings.add(Finding.warning("METADATA_DOMAIN_CLEANED", in.name() + ":line " + line, "The domain '" + dom[0] + "' of table '" + table + "' starts with a character that is not a letter or digit; "
+                        + "it was used as '" + cleaned + "'.", "Correct the domain in the metadata file."));
+                dom[0] = cleaned;
+            }
             rows.add(new Row(table, dom[0], dom[1], cell(rec, idx.get("boundary")), cell(rec, idx.get("upstream")),
-                    cell(rec, idx.get("eon")), line, null));
+                    cell(rec, idx.get("eon")), line, null, cell(rec, idx.get("description"))));
         }
         if (truncatedRows(r)) {
             findings.add(Finding.warning("METADATA_TRUNCATED", in.name(), "The metadata file is longer than the supported number of rows.", "Split the file."));
@@ -118,7 +124,8 @@ public final class TableMetadataCsv {
     private static String canonical(String header) {
         String h = header.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
         return switch (h) {
-            case "tablename", "table" -> "table";
+            case "tablename", "tablenames", "tables", "table" -> "table";
+            case "description", "descriptions", "tabledescription", "tabledescriptions" -> "description";
             case "domain", "domainname" -> "domain";
             case "boundary", "boundaries" -> "boundary";
             case "upstreamdataset", "upstreamdatasets", "upstream" -> "upstream";
