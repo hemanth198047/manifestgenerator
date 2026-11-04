@@ -36,7 +36,7 @@ class Validate(helpers.Workspace):
         self.assertFalse(self.run_checks(properties=os.path.join(self.root, "nope", "casc.properties"))["ok"])
         self.assertFalse(self.run_checks(properties=None)["ok"])
         self.assertFalse(self.run_checks(properties=self.root)["ok"])          # a folder without casc.properties
-        if os.geteuid() != 0:
+        if (not hasattr(os, "geteuid") or os.geteuid() != 0):
             os.chmod(self.props, 0)
             self.assertFalse(self.run_checks()["ok"])
 
@@ -48,7 +48,7 @@ class Validate(helpers.Workspace):
     def test_script_missing_or_not_executable(self):
         self.assertFalse(self.run_checks(script=os.path.join(self.root, "missing.py"))["ok"])
         os.chmod(self.script, os.stat(self.script).st_mode & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
-        if os.geteuid() != 0:
+        if (not hasattr(os, "geteuid") or os.geteuid() != 0):
             self.assertFalse(self.run_checks()["ok"])
 
     def test_the_real_script_path_is_the_default(self):

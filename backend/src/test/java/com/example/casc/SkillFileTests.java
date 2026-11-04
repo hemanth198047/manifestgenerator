@@ -77,16 +77,17 @@ public final class SkillFileTests {
                 yes(doc.contains(o), "COMMANDS.md lists " + o);
                 yes(ingestion.contains(o) || o.equals("--overwrite") || o.equals("--dialect"), "INGESTION.md lists " + o);
                 for (String skill : java.util.List.of(".github/skills/casc-dataset-manifests/SKILL.md", "infrastructure/integrations/claude/casc-dataset-manifests/SKILL.md")) {
-                    yes(read(Path.of(skill)).contains(o), skill + " lists " + o);
+                    yes(read(Path.of(skill)).contains(o), skill + " is out of date: it does not mention " + o + ". Replace it with the latest version of that file from the repository.");
                 }
             }
             for (var e : OTHER_OPTIONS.entrySet()) {
                 String skill = read(Path.of(".github/skills/" + e.getKey() + "/SKILL.md"));
                 for (String o : e.getValue()) {
-                    yes(doc.contains(o), "COMMANDS.md lists " + o);
-                    yes(skill.contains(o), e.getKey() + " lists " + o);
+                    yes(doc.contains(o), "docs/COMMANDS.md is out of date: it does not mention " + o + ". Replace it with the latest version from the repository.");
+                    yes(skill.contains(o), ".github/skills/" + e.getKey() + "/SKILL.md is out of date: it does not mention " + o + ". Replace it with the latest version of that file from the repository.");
                 }
-                eq(skill.replace("\r\n", "\n"), read(Path.of("infrastructure/integrations/claude/" + e.getKey() + "/SKILL.md")).replace("\r\n", "\n"));
+                yes(skill.replace("\r\n", "\n").equals(read(Path.of("infrastructure/integrations/claude/" + e.getKey() + "/SKILL.md")).replace("\r\n", "\n")),
+                        "infrastructure/integrations/claude/" + e.getKey() + "/SKILL.md and .github/skills/" + e.getKey() + "/SKILL.md differ. Copy the latest version of both from the repository.");
             }
             for (String name : java.util.List.of("casc-explain-findings")) {
                 eq(read(Path.of(".github/skills/" + name + "/SKILL.md")).replace("\r\n", "\n"), read(Path.of("infrastructure/integrations/claude/" + name + "/SKILL.md")).replace("\r\n", "\n"));
@@ -118,20 +119,40 @@ public final class SkillFileTests {
             try (java.util.stream.Stream<Path> s = Files.walk(Path.of("."), 6)) {
                 yes(s.noneMatch(p -> p.getFileName() != null && p.getFileName().toString().equals("casc_upload_manifest.py")), "the upload script must not be copied into this repository");
             }
-            Process proc;
-            try {
-                ProcessBuilder pb = new ProcessBuilder("python3", "-m", "unittest", "discover", "-s", "tests");
-                pb.directory(dir.toFile());
-                pb.environment().put("PYTHONDONTWRITEBYTECODE", "1");
-                pb.redirectErrorStream(true);
-                proc = pb.start();
-            } catch (IOException e) {
-                throw new Skipped("python3 is not available, so the skill's Python unit tests were not run");
+            // The skill and its tests are POSIX only: the upload script is under /ms/dist and starts through a shebang line.
+            if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                throw new Skipped("the fdc-manifest-upload skill and its Python tests are POSIX only (the upload script lives under /ms/dist), so they were not run on Windows");
             }
+            String python = findPython();
+            if (python == null) {
+                throw new Skipped("no working Python was found (tried python3, python), so the skill's Python unit tests were not run");
+            }
+            ProcessBuilder pb = new ProcessBuilder(python, "-m", "unittest", "discover", "-s", "tests");
+            pb.directory(dir.toFile());
+            pb.environment().put("PYTHONDONTWRITEBYTECODE", "1");
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
             String out = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            eq(0, proc.waitFor());
+            int exit = proc.waitFor();
+            yes(exit == 0, "the skill's Python unit tests failed with exit code " + exit + ":\n" + out);
             contains(out, "OK");
         });
+    }
+
+    /** A Python that really runs. The Windows Store "python3" stub exits with 9009 and a store message, so the output must say "Python 3.x". */
+    private static String findPython() {
+        for (String candidate : java.util.List.of("python3", "python")) {
+            try {
+                Process p = new ProcessBuilder(candidate, "--version").redirectErrorStream(true).start();
+                String text = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                if (p.waitFor() == 0 && text.matches("(?s)Python \\d.*")) {
+                    return candidate;
+                }
+            } catch (IOException | InterruptedException e) {
+                // not available under this name
+            }
+        }
+        return null;
     }
 
     private static String helpText() {

@@ -6,6 +6,7 @@ import helpers  # noqa: F401
 import install_skill as i
 
 
+@helpers.POSIX_ONLY
 class Install(unittest.TestCase):
     def test_locations(self):
         self.assertEqual(i.target_dir("claude", "user", home="/h"), "/h/.claude/skills/fdc-manifest-upload")

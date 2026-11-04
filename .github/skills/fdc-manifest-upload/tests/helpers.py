@@ -8,6 +8,10 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# The upload script lives under /ms/dist and is started through its shebang line, so the tests that run a fake script, check file modes or use
+# POSIX paths only make sense on Unix-like systems.
+POSIX_ONLY = unittest.skipIf(os.name == "nt", "the upload script and these tests are POSIX only (shebang scripts, /ms/dist paths)")
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts"))
 
 FAKE_SCRIPT = """#!/usr/bin/env python3
@@ -22,6 +26,7 @@ sys.exit(int(os.environ.get("FAKE_EXIT", "0")))
 VALUES = dict(environment="UAT", server="fdc.example.org", meta="meta1", project="MyProject", release="1.0", distribution_system="dist1")
 
 
+@POSIX_ONLY
 class Workspace(unittest.TestCase):
     """A temporary project with a casc.properties and a fake upload script (the real one is never touched)."""
 
