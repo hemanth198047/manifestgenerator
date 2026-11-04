@@ -117,13 +117,9 @@ public final class FindingGuide {
           "The file breaks CSV rules (unterminated quote, quote inside an unquoted value, text after a closing quote).",
           "Fix the quoting at the reported line or export the file again as standard CSV.",
           "docs/INGESTION.md");
-        e("DATASET_DATABASE_MISSING", "Dataset names without a database",
-          "Dataset names are database.schema.table. Some tables have no database (a manifest database without a logicalName, or SQL tables not written as database.schema.table), so their names are schema.table only.",
-          "Pass --database-name NAME, or give the database in the source, then run again with --overwrite.",
-          "docs/INGESTION.md (Dataset manifests per table)");
-        e("DATASET_SCHEMA_MISSING", "SQL table without a schema",
-          "A table in the SQL has no schema (it is not written as schema.table) and no default schema was given, so its dataset is named with the table name only.",
-          "Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.",
+        e("DATASET_NAME_DUPLICATE", "Several tables get the same dataset name",
+          "Every dataset is named database.schema.table with the fixed database and schema (default a2 and dbo), so tables with the same name from different schemas or databases of the source get the same dataset name. Their files are kept apart, but the names are identical.",
+          "Generate them separately (use --table-list with schema.table), or give them different names in the source.",
           "docs/INGESTION.md (Dataset manifests per table)");
         e("DATASET_SUMMARY", "Summary of a dataset-manifest run",
           "How many tables were read from the source, how many rows the metadata CSV has and how many manifests were generated. Only tables that have a metadata row are generated, so the number generated is at most the number of metadata rows.",

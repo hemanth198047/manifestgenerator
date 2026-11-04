@@ -79,7 +79,7 @@ public final class DatasetManifestTests {
             var g = r.manifests().get(0);
             eq("manifest_TAPSAccount.json", g.fileName());
             Map<String, Object> d = dataset(g);
-            eq("TBD.a2oltp.TAPSAccount", d.get("name"));
+            eq("a2.dbo.TAPSAccount", d.get("name"));
             eq("ResultSet", d.get("format"));
             eq("FDC", d.get("originatingCatalogingSource"));
             eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(d.get("dgcDataDomains")));
@@ -125,17 +125,15 @@ public final class DatasetManifestTests {
             yes(!r.hasErrors(), r.findings().toString());
             eq(2, r.manifests().size());
             Map<String, Object> d = dataset(r.manifests().get(0));
-            eq("a2oltp.TAPSAccount", d.get("name"));
+            eq("a2.dbo.TAPSAccount", d.get("name"));
             eq("[{\"name\":\"accountID\",\"description\":\"Account identifier\"},{\"name\":\"AccountUUID\"}]", Json.writeCompact(d.get("datasetElements")));
             yes(!r.manifests().get(0).content().contains("systemDataElements"), "SQL has no system data elements");
-            eq("Plain", dataset(r.manifests().get(1)).get("name"));
-            yes(has(r, "DATASET_SCHEMA_MISSING"), "Plain has no schema");
+            eq("a2.dbo.Plain", dataset(r.manifests().get(1)).get("name"));
             yes(has(r, "DATASET_VIEW_SKIPPED"), "view skipped");
             yes(has(r, "METADATA_TABLE_NOT_IN_MANIFEST"), "TAPSView is a view, not a table");
             var withDefault = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("schema.sql", SQL)), SourceInput.of("t.csv", csv),
                     IngestOptions.defaults(), "a2oltp");
-            eq("a2oltp.Plain", dataset(withDefault.manifests().get(1)).get("name"));
-            yes(!has(withDefault, "DATASET_SCHEMA_MISSING"), "default schema applied");
+            eq("a2.dbo.Plain", dataset(withDefault.manifests().get(1)).get("name"));
         });
         test("datasets: external column metadata supplies systemDataElements for SQL tables and overrides a manifest's own", () -> {
             String meta = "table name,domain,boundary,upstream dataset,producer eonid\nTAPSAccount,Account,Firmwide,a2.dbo.TAPSAccount,3212\n";
@@ -209,10 +207,10 @@ public final class DatasetManifestTests {
             eq(5, ((List<?>) ((Map<?, ?>) Json.parse(all.content())).get("datasets")).size());
             var two = DatasetManifestCombiner.combine(parts, new DatasetManifestCombiner.Selection(2, null));
             eq(2, two.datasets());
-            contains(two.content(), "s.T0");
-            contains(two.content(), "s.T1");
-            yes(!two.content().contains("s.T2"), "only the first two");
-            var named = DatasetManifestCombiner.combine(parts, new DatasetManifestCombiner.Selection(null, List.of("t3", "s.T1", "Nope")));
+            contains(two.content(), "a2.dbo.T0");
+            contains(two.content(), "a2.dbo.T1");
+            yes(!two.content().contains("a2.dbo.T2"), "only the first two");
+            var named = DatasetManifestCombiner.combine(parts, new DatasetManifestCombiner.Selection(null, List.of("t3", "dbo.T1", "Nope")));
             eq(2, named.datasets());
             yes(has2(named, "COMBINE_TABLE_NOT_FOUND"), "unknown table reported");
             var dup = new java.util.ArrayList<>(parts);
@@ -243,7 +241,7 @@ public final class DatasetManifestTests {
                 eq(2, ((List<?>) ((Map<?, ?>) Json.parse(Files.readString(combined))).get("datasets")).size());
                 eq(0, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString(), "--tables", "c", "--overwrite"},
                         InputStream.nullInputStream(), po, po, k -> null));
-                contains(Files.readString(combined), "s.C");
+                contains(Files.readString(combined), "a2.dbo.C");
                 eq(2, Cli.run(new String[] {"combine", "--input", out.toString(), "--output", combined.toString(), "--count", "2", "--tables", "a", "--overwrite"},
                         InputStream.nullInputStream(), po, po, k -> null));
                 Path one = dir.resolve("one");
@@ -259,28 +257,35 @@ public final class DatasetManifestTests {
                 deleteTree(dir);
             }
         });
-        test("datasets: the dataset name is database.schema.table; --database-name sets or replaces the database", () -> {
+        test("datasets: every dataset is named a2.dbo.tableName, whatever the source says; --database-name and --schema-name change the parts", () -> {
             String meta = "table name,domain,boundary\nTAPSAccount,Account,Firmwide\n";
-            // manifest: the database is the logicalName
+            // manifest: the source database (logicalName TBD) and schema (a2oltp) do not appear in the name
             var m = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, null);
-            eq("TBD.a2oltp.TAPSAccount", dataset(m.manifests().get(0)).get("name"));
-            yes(!has(m, "DATASET_DATABASE_MISSING"), "database known");
-            var over = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, "TRADE_DB");
-            eq("TRADE_DB.a2oltp.TAPSAccount", dataset(over.manifests().get(0)).get("name"));
-            // manifest without a logicalName: no database, with a warning
-            String noDb = STRICT.replace("\"logicalName\":\"TBD\",", "");
-            var none = DatasetManifestIngestion.generate(SourceInput.of("m.json", noDb), SourceInput.of("t.csv", meta), null, false, null);
-            eq("a2oltp.TAPSAccount", dataset(none.manifests().get(0)).get("name"));
-            yes(has(none, "DATASET_DATABASE_MISSING"), "warns when the database is unknown");
-            // SQL: a three-part name carries its database; --database-name fills or replaces it
-            String sql = "CREATE TABLE mydb.a2oltp.TAPSAccount (accountID INT);";
-            var s3 = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", sql)), SourceInput.of("t.csv", meta), IngestOptions.defaults(), null, null, false, null);
-            eq("mydb.a2oltp.TAPSAccount", dataset(s3.manifests().get(0)).get("name"));
-            var s2 = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", SQL)), SourceInput.of("t.csv", meta), IngestOptions.defaults(), null, null, false, "TRADE_DB");
-            eq("TRADE_DB.a2oltp.TAPSAccount", dataset(s2.manifests().get(0)).get("name"));
+            eq("a2.dbo.TAPSAccount", dataset(m.manifests().get(0)).get("name"));
+            var over = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, "TRADE_DB", "sales", null);
+            eq("TRADE_DB.sales.TAPSAccount", dataset(over.manifests().get(0)).get("name"));
+            var dbOnly = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), null, false, "TRADE_DB", null);
+            eq("TRADE_DB.dbo.TAPSAccount", dataset(dbOnly.manifests().get(0)).get("name"));
+            // SQL: a three-part name, a two-part name and an unqualified name all give a2.dbo.table
+            String sql = "CREATE TABLE mydb.sch.Three (a INT); CREATE TABLE sch.Two (a INT); CREATE TABLE One (a INT);";
+            var all = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", sql)), SourceInput.of("t.csv", "table name,domain,boundary\nThree,A,F\nTwo,A,F\nOne,A,F\n"),
+                    IngestOptions.defaults(), null, null, false, null, null, null);
+            yes(!all.hasErrors(), all.findings().toString());
+            eq(3, all.manifests().size());
+            for (int i = 0; i < 3; i++) {
+                yes(String.valueOf(dataset(all.manifests().get(i)).get("name")).startsWith("a2.dbo."), "a2.dbo prefix");
+            }
+            yes(!has(all, "DATASET_SCHEMA_MISSING") && !has(all, "DATASET_DATABASE_MISSING"), "no missing database or schema warnings any more");
+            // the same table name in two schemas gives the same dataset name: warn, and keep the files apart
+            String two = "CREATE TABLE s1.Dup (a INT); CREATE TABLE s2.Dup (a INT);";
+            var dup = DatasetManifestIngestion.generateFromSql(List.of(SourceInput.of("s.sql", two)), SourceInput.of("t.csv", "table name,domain,boundary\nDup,A,F\n"),
+                    IngestOptions.defaults(), null, null, false, null, null, null);
+            eq(2, dup.manifests().size());
+            yes(has(dup, "DATASET_NAME_DUPLICATE"), dup.findings().toString());
+            yes(!dup.manifests().get(0).fileName().equals(dup.manifests().get(1).fileName()), "distinct file names");
             // combine --tables still finds a table by table name, schema.table or database.schema.table
-            for (String w : List.of("TAPSAccount", "a2oltp.TAPSAccount", "TRADE_DB.a2oltp.TAPSAccount")) {
-                var c = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", s2.manifests().get(0).content())), new DatasetManifestCombiner.Selection(null, List.of(w)));
+            for (String w : List.of("TAPSAccount", "dbo.TAPSAccount", "TRADE_DB.dbo.TAPSAccount")) {
+                var c = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", dbOnly.manifests().get(0).content())), new DatasetManifestCombiner.Selection(null, List.of(w)));
                 eq(1, c.datasets());
             }
         });
@@ -290,7 +295,7 @@ public final class DatasetManifestTests {
             yes(!r.hasErrors(), r.findings().toString());
             eq(1, r.manifests().size());
             Map<String, Object> d = dataset(r.manifests().get(0));
-            eq("TBD.a2oltp.TAPSAccount", d.get("name"));
+            eq("a2.dbo.TAPSAccount", d.get("name"));
             eq("{\"Operations DGC Glossary\":[{\"domainName\":\"Account\"}]}", Json.writeCompact(d.get("dgcDataDomains")));
             eq("[{\"product\":[\"Firmwide\"]}]", Json.writeCompact(d.get("boundaries")));
             yes(!d.containsKey("upstreamDatasets"), "no upstream");
@@ -332,7 +337,7 @@ public final class DatasetManifestTests {
                         "--domain", "Account (Operations DGC Glossary)", "--boundary", "Firmwide", "--no-upstream", "--database-name", "DB", "--dataset-output", dir.resolve("out").toString()},
                         InputStream.nullInputStream(), po, po, k -> null));
                 String written = Files.readString(dir.resolve("out/manifest_TAPSAccount.json"));
-                contains(written, "\"name\": \"DB.a2oltp.TAPSAccount\"");
+                contains(written, "\"name\": \"DB.dbo.TAPSAccount\"");
                 contains(written, "\"domainName\": \"Account\"");
                 yes(!Files.exists(dir.resolve("out/manifest_Plain.json")), "only listed tables");
                 eq(2, Cli.run(new String[] {"ingest", "--sql-input", dir.resolve("s.sql").toString(), "--dataset-output", dir.resolve("o2").toString()},
@@ -357,7 +362,7 @@ public final class DatasetManifestTests {
                     new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,description\nTAPSAccount,Account records\n")));
             eq("Account records", dataset(man.manifests().get(0)).get("description"));
             var none = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null, null);
-            eq("TAPSAccount table of the a2oltp schema", dataset(none.manifests().get(0)).get("description"));
+            eq("TAPSAccount table of the dbo schema", dataset(none.manifests().get(0)).get("description"));
             var bad = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null,
                     new DatasetManifestIngestion.TableSelection(null, null, null, SourceInput.of("d.csv", "table name,notes\nTAPSAccount,x\n")));
             yes(has(bad, "TABLE_DESCRIPTIONS_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a description column");

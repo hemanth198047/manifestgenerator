@@ -26,6 +26,9 @@ public final class DatasetManifestIngestion {
     private DatasetManifestIngestion() {}
 
     public static final String FORMAT = "ResultSet";
+    /** Every dataset is named database.schema.table with these defaults (a2.dbo.tableName), whatever database and schema the source uses. */
+    public static final String DEFAULT_DATABASE = "a2";
+    public static final String DEFAULT_SCHEMA = "dbo";
     public static final String CATALOGING_SOURCE = "FDC";
 
     /** One generated manifest. fileName is a suggestion such as manifest_TAPSAccount.json. */
@@ -73,10 +76,16 @@ public final class DatasetManifestIngestion {
     /** metadataCsv may be null when selection has a table list. selection may be null. */
     public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream, String databaseName,
                                   TableSelection selection) {
+        return generate(manifestJson, metadataCsv, columnCsv, includeUpstream, databaseName, null, selection);
+    }
+
+    /** databaseName and schemaName (each may be null) replace the defaults a2 and dbo in every dataset name. */
+    public static Result generate(SourceInput manifestJson, SourceInput metadataCsv, SourceInput columnCsv, boolean includeUpstream, String databaseName,
+                                  String schemaName, TableSelection selection) {
         List<Finding> findings = new ArrayList<>();
         ManifestTables.Result tables = ManifestTables.read(manifestJson);
         findings.addAll(tables.findings());
-        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv, includeUpstream, databaseName, selection);
+        return build(tables.tables(), findings, manifestJson.name(), metadataCsv, columnCsv, includeUpstream, databaseName, schemaName, selection);
     }
 
     /**
@@ -109,21 +118,23 @@ public final class DatasetManifestIngestion {
     /** metadataCsv may be null when selection has a table list. selection may be null. */
     public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
                                          SourceInput columnCsv, boolean includeUpstream, String databaseName, TableSelection selection) {
+        return generateFromSql(sql, metadataCsv, options, defaultSchema, columnCsv, includeUpstream, databaseName, null, selection);
+    }
+
+    /** databaseName and schemaName (each may be null) replace the defaults a2 and dbo in every dataset name. */
+    public static Result generateFromSql(List<SourceInput> sql, SourceInput metadataCsv, IngestOptions options, String defaultSchema,
+                                         SourceInput columnCsv, boolean includeUpstream, String databaseName, String schemaName, TableSelection selection) {
         List<Finding> findings = new ArrayList<>();
         RawMetadataBundle bundle = SourceIngestionService.standard().ingest(sql, options);
         findings.addAll(bundle.findings());
         List<Table> tables = new ArrayList<>();
         int views = 0;
-        int noSchema = 0;
         for (RawMetadataBundle.RawTable t : bundle.tables()) {
             if ("VIEW".equals(t.kind())) {
                 views++;
                 continue;
             }
             String schema = t.schema() != null ? t.schema() : defaultSchema;
-            if (schema == null) {
-                noSchema++;
-            }
             List<Column> cols = new ArrayList<>();
             for (RawMetadataBundle.RawColumn c : t.columns()) {
                 cols.add(new Column(c.name(), null, c.description() == null || c.description().isBlank() ? null : c.description()));
@@ -135,15 +146,11 @@ public final class DatasetManifestIngestion {
             findings.add(Finding.info("DATASET_VIEW_SKIPPED", label, views + " view(s) in the SQL were not mapped; only tables get a dataset manifest.",
                     "Nothing to do unless a view needs a dataset manifest; then it must be described as a table."));
         }
-        if (noSchema > 0) {
-            findings.add(Finding.warning("DATASET_SCHEMA_MISSING", label, noSchema + " table(s) have no schema in the SQL, so their datasets are named with the table name only.",
-                    "Qualify the table names in the SQL (schema.table) or pass --default-schema SCHEMA, then run again with --overwrite."));
-        }
-        return build(tables, findings, label, metadataCsv, columnCsv, includeUpstream, databaseName, selection);
+        return build(tables, findings, label, metadataCsv, columnCsv, includeUpstream, databaseName, schemaName, selection);
     }
 
     private static Result build(List<Table> sourceTables, List<Finding> findings, String sourceName, SourceInput metadataCsv, SourceInput columnCsv,
-                                boolean includeUpstream, String databaseName, TableSelection selection) {
+                                boolean includeUpstream, String databaseName, String schemaName, TableSelection selection) {
         SourceInput listInput = selection == null ? null : selection.tableList();
         String metaName = metadataCsv != null ? metadataCsv.name() : listInput != null ? listInput.name() : "the metadata";
         TableMetadataCsv.Result meta = metadataCsv != null ? TableMetadataCsv.parse(metadataCsv, includeUpstream) : new TableMetadataCsv.Result(List.of(), List.of());
@@ -154,11 +161,9 @@ public final class DatasetManifestIngestion {
         }
         ColumnMetadataCsv.Result colMeta = columnCsv == null ? ColumnMetadataCsv.Result.empty() : ColumnMetadataCsv.parse(columnCsv);
         findings.addAll(colMeta.findings());
-        List<Table> withDb = new ArrayList<>();
-        for (Table t : sourceTables) {
-            withDb.add(databaseName == null || databaseName.isBlank() ? t : new Table(databaseName.trim(), t.schema(), t.name(), t.description(), t.columns()));
-        }
-        List<Table> allTables = applyColumnMetadata(withDb, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
+        String prefix = (databaseName == null || databaseName.isBlank() ? DEFAULT_DATABASE : databaseName.trim()) + "."
+                + (schemaName == null || schemaName.isBlank() ? DEFAULT_SCHEMA : schemaName.trim()) + ".";
+        List<Table> allTables = applyColumnMetadata(sourceTables, colMeta, columnCsv == null ? null : columnCsv.name(), sourceName, findings);
         SourceInput descInput = selection == null ? null : selection.descriptions();
         Set<String> describedByFile = new HashSet<>();
         if (descInput != null) {
@@ -204,7 +209,7 @@ public final class DatasetManifestIngestion {
         }
         List<Generated> out = new ArrayList<>();
         Set<String> seenRows = new HashSet<>();
-        int missingDb = 0;
+        java.util.Map<String, Integer> nameCount = new java.util.LinkedHashMap<>();
         Set<String> usedNames = new HashSet<>();
         List<Table> usedTables = new ArrayList<>();
         for (Row row : rows) {
@@ -242,12 +247,10 @@ public final class DatasetManifestIngestion {
                                 : "Fill in the value in the metadata CSV and run again with --overwrite."));
             }
             for (Table t : matches) {
-                if (t.database() == null) {
-                    missingDb++;
-                }
+                nameCount.merge(prefix + t.name(), 1, Integer::sum);
                 usedTables.add(t);
                 String file = fileName(t, matches.size() > 1, usedNames);
-                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream)) + "\n"));
+                out.add(new Generated(t.schema(), t.name(), file, Json.write(manifest(t, row, findings, metaName, includeUpstream, prefix)) + "\n"));
             }
         }
         if (descInput != null) {
@@ -263,9 +266,12 @@ public final class DatasetManifestIngestion {
                         "Add a row for each of those tables to the table descriptions file and run again with --overwrite."));
             }
         }
-        if (missingDb > 0) {
-            findings.add(Finding.warning("DATASET_DATABASE_MISSING", sourceName, missingDb + " dataset(s) have no database, so their names are schema.table instead of database.schema.table.",
-                    "Pass --database-name NAME, or give the database in the source (the manifest's logicalName, or database.schema.table in the SQL), then run again with --overwrite."));
+        for (java.util.Map.Entry<String, Integer> e : nameCount.entrySet()) {
+            if (e.getValue() > 1) {
+                findings.add(Finding.warning("DATASET_NAME_DUPLICATE", sourceName, e.getValue() + " tables of " + sourceName + " (from different schemas or databases) all get the dataset name '" + e.getKey()
+                        + "', because every dataset is named " + prefix + "tableName. Their files are kept apart, but the names are the same.",
+                        "Generate them separately (use --table-list with schema.table) or give them different names in the source."));
+            }
         }
         Set<String> described = new HashSet<>();
         for (Row r : rows) {
@@ -416,11 +422,11 @@ public final class DatasetManifestIngestion {
         return s.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
-    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName, boolean includeUpstream) {
+    private static Map<String, Object> manifest(Table t, Row row, List<Finding> findings, String metaName, boolean includeUpstream, String prefix) {
         Map<String, Object> d = new LinkedHashMap<>();
-        d.put("name", (t.database() != null ? t.database() + "." : "") + (t.schema() != null ? t.schema() + "." : "") + t.name());
+        d.put("name", prefix + t.name());
         d.put("description", t.description() != null ? t.description()
-                : t.name() + " table" + (t.schema() != null ? " of the " + t.schema() + " schema" : ""));
+                : t.name() + " table of the " + prefix.substring(prefix.indexOf('.') + 1, prefix.length() - 1) + " schema");
         d.put("format", FORMAT);
         if (!row.boundary().isEmpty()) {
             Map<String, Object> b = new LinkedHashMap<>();

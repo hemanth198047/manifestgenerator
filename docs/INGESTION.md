@@ -109,13 +109,12 @@ ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MO
        --dataset-output OUT_DIR
        ( --table-metadata TABLE_METADATA.csv | --table-list TABLES.csv [--domain TEXT] [--boundary TEXT] )   at least one of the two
        [--table-descriptions DESCRIPTIONS.csv] [--column-metadata COLUMNS.csv]
-       [--no-upstream] [--database-name DB] [--combine-output FILE ...] [--overwrite]
+       [--no-upstream] [--database-name DB] [--schema-name S] [--combine-output FILE ...] [--overwrite]
 ```
 
 **Where the tables come from (give one).**
 - `--manifest-input FILE`: the `databases[].schemas[].tables[]` section of a manifest JSON. A manifest with trailing or missing commas is still read: only its `databases` section is parsed, leniently (`MANIFEST_LENIENT_READ`).
-- `--sql-input FILE` (repeatable): `CREATE TABLE` statements, read by the normal SQL reader. The schema comes from `schema.table` (or `--default-schema`; without either the dataset is named with the table name only and `DATASET_SCHEMA_MISSING` is reported).
-  A column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one. SQL has no system data elements, so `systemDataElements` is left out unless `--column-metadata` supplies them. Views are skipped (`DATASET_VIEW_SKIPPED`).
+- `--sql-input FILE` (repeatable): `CREATE TABLE` statements, read by the normal SQL reader. A column's `description` comes from a SQL comment (`COMMENT ON COLUMN ...`) when there is one. SQL has no system data elements, so `systemDataElements` is left out unless `--column-metadata` supplies them. Views are skipped (`DATASET_VIEW_SKIPPED`). A schema in the SQL (or `--default-schema`) is only used to match a `schema.table` in `--table-list`; it does not appear in the dataset name.
 
 **Which tables are generated, and their domain, boundary and upstream (give at least one).**
 - `--table-metadata FILE`: CSV with the header `table name, domain, boundary, upstream dataset, producer eonid` (case and spacing ignored). **One manifest per table that has a row.** A domain written `Account (Operations DGC Glossary)` is split into the domain and its glossary (default glossary: `Operations DGC Glossary`).
@@ -125,7 +124,8 @@ ingest ( --manifest-input MANIFEST.json | --sql-input SCHEMA.sql [--sql-input MO
 - A metadata row whose table is not in the source is a warning (`METADATA_TABLE_NOT_IN_MANIFEST`); a source table that is not selected is not generated (info `TABLE_WITHOUT_METADATA`).
 
 **What goes into each dataset.**
-- `name` = `database.schema.table`. The database is the manifest's `logicalName` or the database written in the SQL; `--database-name DB` sets or replaces it (without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported).
+- `name` = `a2.dbo.<tableName>`: **every dataset is named `a2.dbo.` followed by the table name**, whatever database and schema the source has. `--database-name DB` and `--schema-name S` replace `a2` and `dbo` (for example `TRADE_DB.sales.<tableName>`).
+  If two tables with the same name come from different schemas of the source they get the same dataset name; this is reported (`DATASET_NAME_DUPLICATE`) and their files are kept apart.
 - `description`: from `--table-descriptions FILE` when the table has a row there, else the table's own description in the source (a SQL comment), else generated from the table name.
   The file is a CSV or TSV with a table column (`table name`, `tables` or `table`) and a `description` column; other columns are ignored; a table may be `table`, `schema.table` or `database.schema.table`. Rows for tables that are not in the source are reported (`TABLE_DESCRIPTION_NOT_FOUND`);
   generated datasets without a row are counted (`TABLE_DESCRIPTION_DEFAULT_USED`).

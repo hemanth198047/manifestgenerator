@@ -56,7 +56,7 @@ public final class SkillFileTests {
     }
 
     private static final java.util.List<String> DATASET_OPTIONS = java.util.List.of("--manifest-input", "--sql-input", "--table-metadata", "--table-list", "--domain", "--boundary",
-            "--table-descriptions", "--column-metadata", "--no-upstream", "--database-name", "--default-schema", "--dialect", "--combine-output", "--combine-count", "--combine-tables",
+            "--table-descriptions", "--column-metadata", "--no-upstream", "--database-name", "--schema-name", "--default-schema", "--dialect", "--combine-output", "--combine-count", "--combine-tables",
             "--combined-only", "--dataset-output", "--overwrite");
     private static final java.util.Map<String, java.util.List<String>> OTHER_OPTIONS = java.util.Map.of(
             "casc-combine-datasets", java.util.List.of("--input", "--output", "--count", "--tables", "--overwrite"),

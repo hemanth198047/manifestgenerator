@@ -200,20 +200,12 @@ This file is generated from `FindingGuide.java`; a test fails if they differ.
 - **How to fix it:** Fix the quoting at the reported line or export the file again as standard CSV.
 - **Where to look:** docs/INGESTION.md
 
-## DATASET_DATABASE_MISSING
+## DATASET_NAME_DUPLICATE
 
-**Dataset names without a database**
+**Several tables get the same dataset name**
 
-- **What it means:** Dataset names are database.schema.table. Some tables have no database (a manifest database without a logicalName, or SQL tables not written as database.schema.table), so their names are schema.table only.
-- **How to fix it:** Pass --database-name NAME, or give the database in the source, then run again with --overwrite.
-- **Where to look:** docs/INGESTION.md (Dataset manifests per table)
-
-## DATASET_SCHEMA_MISSING
-
-**SQL table without a schema**
-
-- **What it means:** A table in the SQL has no schema (it is not written as schema.table) and no default schema was given, so its dataset is named with the table name only.
-- **How to fix it:** Qualify the table names in the SQL, or pass --default-schema SCHEMA, then run again with --overwrite.
+- **What it means:** Every dataset is named database.schema.table with the fixed database and schema (default a2 and dbo), so tables with the same name from different schemas or databases of the source get the same dataset name. Their files are kept apart, but the names are identical.
+- **How to fix it:** Generate them separately (use --table-list with schema.table), or give them different names in the source.
 - **Where to look:** docs/INGESTION.md (Dataset manifests per table)
 
 ## DATASET_SUMMARY

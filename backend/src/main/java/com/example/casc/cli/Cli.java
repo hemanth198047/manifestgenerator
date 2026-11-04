@@ -163,7 +163,7 @@ public final class Cli {
                     return ingest(parse(args, 1, Set.of("--input-files", "--root", "--dialect", "--delimiter", "--header-row",
                             "--mode", "--max-rows", "--sheet", "--map", "--db-name", "--db-type", "--default-schema", "--format",
                             "--output", "--bundle-output", "--interface-direction", "--url", "--url-allow", "--url-timeout",
-                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output", "--database-name", "--table-list", "--domain", "--boundary", "--table-descriptions",
+                            "--url-max-bytes", "--manifest-input", "--sql-input", "--table-metadata", "--column-metadata", "--dataset-output", "--database-name", "--schema-name", "--table-list", "--domain", "--boundary", "--table-descriptions",
                             "--combine-output", "--combine-count", "--combine-tables"),
                             Set.of("--no-header", "--overwrite", "--json", "--url-allow-http", "--no-upstream", "--combined-only")), out, err);
                 case "json":
@@ -224,7 +224,7 @@ public final class Cli {
         p.println("         --table-metadata then becomes optional: --domain and --boundary give the defaults for tables without a metadata row");
         p.println("         [--table-descriptions FILE]  CSV of table descriptions (a table column and a description column) used as each dataset's description");
         p.println("         [--no-upstream]  no upstreamDatasets; the metadata needs only table name, domain, boundary");
-        p.println("         [--database-name NAME]  the database part of every dataset name (database.schema.table); default: the manifest's logicalName or the database in the SQL");
+        p.println("         [--database-name NAME] [--schema-name NAME]  the database and schema parts of every dataset name; default a2 and dbo, so names are a2.dbo.tableName");
         p.println("         [--combine-output FILE [--combine-count N | --combine-tables A,B,...] [--combined-only]]  also write one combined manifest");
         p.println("  combine --input FILE_OR_DIR [--input ...] --output FILE [--count N | --tables A,B,...] [--overwrite]   combine dataset manifests into one");
         p.println("JSON files");
@@ -425,7 +425,7 @@ public final class Cli {
                             descFile == null ? null : readSource(descFile));
             SourceInput columns = o.get("--column-metadata", null) == null ? null : readSource(o.get("--column-metadata", null));
             if (manifest != null) {
-                r = DatasetManifestIngestion.generate(readSource(manifest), metaInput, columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), tableSelection);
+                r = DatasetManifestIngestion.generate(readSource(manifest), metaInput, columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), o.get("--schema-name", null), tableSelection);
             } else {
                 Map<String, String> m = new LinkedHashMap<>();
                 if (o.get("--dialect", null) != null) {
@@ -441,7 +441,7 @@ public final class Cli {
                 for (String f : sqlFiles) {
                     sql.add(readSource(f));
                 }
-                r = DatasetManifestIngestion.generateFromSql(sql, metaInput, options, o.get("--default-schema", null), columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), tableSelection);
+                r = DatasetManifestIngestion.generateFromSql(sql, metaInput, options, o.get("--default-schema", null), columns, !o.flags().contains("--no-upstream"), o.get("--database-name", null), o.get("--schema-name", null), tableSelection);
             }
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
@@ -959,7 +959,7 @@ public final class Cli {
 
     private static int ingest(Opts o, PrintStream out, PrintStream err) throws UsageException {
         if (o.get("--manifest-input", null) != null || !o.all("--sql-input").isEmpty() || o.get("--table-metadata", null) != null
-                || o.get("--column-metadata", null) != null || o.get("--table-list", null) != null || o.get("--table-descriptions", null) != null || o.get("--database-name", null) != null || o.get("--dataset-output", null) != null) {
+                || o.get("--column-metadata", null) != null || o.get("--table-list", null) != null || o.get("--table-descriptions", null) != null || o.get("--database-name", null) != null || o.get("--schema-name", null) != null || o.get("--dataset-output", null) != null) {
             return ingestDatasets(o, out, err);
         }
         List<String> paths = o.all("--input-files");

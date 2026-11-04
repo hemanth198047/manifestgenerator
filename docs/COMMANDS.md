@@ -86,8 +86,8 @@ Give the tables as a manifest JSON (`databases[].schemas[].tables[]`; a manifest
 | `--table-descriptions FILE` | CSV/TSV with a table column (`table name`, `tables` or `table`) and a `description` column: each table's description in its dataset manifest (other columns are ignored; without a row the SQL comment or a generated description is used) |
 | `--column-metadata FILE` | CSV `table name, column name, system data element`: supplies `systemDataElements` per column (fills what SQL cannot, replaces a manifest's own value) |
 | `--no-upstream` | Write no `upstreamDatasets`; the metadata CSV then needs only `table name, domain, boundary` |
-| `--database-name NAME` | The database part of every dataset name (`database.schema.table`). Default: the manifest's `logicalName`, or the database written in the SQL. Without any, the name is `schema.table` and `DATASET_DATABASE_MISSING` is reported |
-| `--default-schema S` | Schema for SQL tables that have none |
+| `--database-name NAME`, `--schema-name NAME` | The database and schema parts of every dataset name. **Every dataset is named `a2.dbo.<tableName>` by default**, whatever database and schema the source uses; these two options replace `a2` and `dbo` (for example `--database-name TRADE_DB --schema-name sales` gives `TRADE_DB.sales.<tableName>`) |
+| `--default-schema S` | Schema to assume for SQL tables that have none, so that a `schema.table` in `--table-list` can still match them. It does not change the dataset name (see `--schema-name`) |
 | `--dialect D` | SQL dialect (as for reading sources) |
 | `--combine-output FILE` | Also write one combined manifest |
 | `--combine-count N` / `--combine-tables A,B,...` | Combine only the first N datasets / only the named tables (not both) |
