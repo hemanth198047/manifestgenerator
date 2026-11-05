@@ -368,37 +368,40 @@ public final class DatasetManifestTests {
             yes(has(bad, "TABLE_DESCRIPTIONS_COLUMN_MISSING") && bad.hasErrors() && bad.manifests().isEmpty(), "needs a description column");
         });
         test("prefixes like a2.dbo. are ignored everywhere: metadata, table list, descriptions, column metadata, the source and combine --tables", () -> {
+            // every check says which input kind it covers and which source file to refresh if it fails (the test and these files must come from the same version)
             String meta = "table name,description,domain,boundary\na2.dbo.TAPSAccount,Prefixed in the metadata,Account,F\n[dbo].[CanadaReportingJurisdiction],Quoted,Account,F\n";
             var r = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), SourceInput.of("t.csv", meta), SourceInput.of("c.csv",
                     "table name,column name,system data element\nx.y.TAPSAccount,accountID,Account ID\n"), false, null, null);
-            yes(!r.hasErrors(), r.findings().toString());
-            eq(2, r.manifests().size());
-            yes(!has(r, "METADATA_TABLE_NOT_IN_MANIFEST"), "prefixed names match the bare table names");
+            yes(!r.hasErrors(), "metadata CSV with prefixed names gave errors: " + r.findings());
+            yes(r.manifests().size() == 2, "metadata CSV: a2.dbo.TAPSAccount and [dbo].[CanadaReportingJurisdiction] should both match, but " + r.manifests().size()
+                    + " manifest(s) were generated. Refresh TableMetadataCsv.java, TableNames.java and DatasetManifestIngestion.java. Findings: " + r.findings());
+            yes(!has(r, "METADATA_TABLE_NOT_IN_MANIFEST"), "metadata CSV: prefixed names must match the bare table names. Refresh TableMetadataCsv.java and TableNames.java.");
             Map<String, Object> a = dataset(r.manifests().get(0));
-            eq("a2.dbo.TAPSAccount", a.get("name"));
-            eq("Prefixed in the metadata", a.get("description"));
-            contains(r.manifests().get(0).content(), "\"systemDataElements\": [");
-            eq("a2.dbo.CanadaReportingJurisdiction", dataset(r.manifests().get(1)).get("name"));
+            yes("a2.dbo.TAPSAccount".equals(a.get("name")), "dataset name should be a2.dbo.TAPSAccount but was " + a.get("name") + ". Refresh DatasetManifestIngestion.java.");
+            yes("Prefixed in the metadata".equals(a.get("description")), "description column of the metadata CSV was not used: " + a.get("description") + ". Refresh TableMetadataCsv.java and DatasetManifestIngestion.java.");
+            yes(r.manifests().get(0).content().contains("\"systemDataElements\": ["), "column metadata with a prefixed table name (x.y.TAPSAccount) was not applied. Refresh ColumnMetadataCsv.java and TableNames.java.");
+            yes("a2.dbo.CanadaReportingJurisdiction".equals(dataset(r.manifests().get(1)).get("name")), "the quoted name [dbo].[CanadaReportingJurisdiction] was not reduced to the table name. Refresh TableNames.java.");
             // table list and descriptions file with prefixes
             var sel = new DatasetManifestIngestion.TableSelection(SourceInput.of("l.txt", "a2.dbo.TAPSAccount\n\"dbo\".\"CanadaReportingJurisdiction\"\n"), "Account", "F",
                     SourceInput.of("d.csv", "Tables,Description\nsome.prefix.TAPSAccount,From the descriptions file\n"));
             var l = DatasetManifestIngestion.generate(SourceInput.of("m.json", STRICT), null, null, false, null, sel);
-            eq(2, l.manifests().size());
-            eq("From the descriptions file", dataset(l.manifests().get(0)).get("description"));
-            yes(!has(l, "TABLE_LIST_NOT_IN_SOURCE") && !has(l, "TABLE_DESCRIPTION_NOT_FOUND"), l.findings().toString());
+            yes(l.manifests().size() == 2, "table list with prefixed names: expected 2 manifests but got " + l.manifests().size() + ". Refresh TableListCsv.java and TableNames.java. Findings: " + l.findings());
+            yes("From the descriptions file".equals(dataset(l.manifests().get(0)).get("description")), "descriptions file with a prefixed table name was not applied. Refresh TableDescriptionsCsv.java and TableNames.java.");
+            yes(!has(l, "TABLE_LIST_NOT_IN_SOURCE") && !has(l, "TABLE_DESCRIPTION_NOT_FOUND"), "prefixed names were reported as not found: " + l.findings());
             // a prefix in the source's own table name is ignored too, and not doubled in the dataset name
             String prefixedSource = STRICT.replace("\"physicalName\":\"TAPSAccount\"", "\"physicalName\":\"a2.dbo.TAPSAccount\"");
             var ps = DatasetManifestIngestion.generate(SourceInput.of("m.json", prefixedSource), SourceInput.of("t.csv", "table name,domain,boundary\nTAPSAccount,Account,F\n"), null, false, null, null);
-            eq("a2.dbo.TAPSAccount", dataset(ps.manifests().get(0)).get("name"));
-            eq("manifest_TAPSAccount.json", ps.manifests().get(0).fileName());
+            yes(ps.manifests().size() == 1, "a source table written a2.dbo.TAPSAccount did not match TAPSAccount. Refresh DatasetManifestIngestion.java and TableNames.java. Findings: " + ps.findings());
+            yes("a2.dbo.TAPSAccount".equals(dataset(ps.manifests().get(0)).get("name")), "the prefix of the source table was doubled in the dataset name: " + dataset(ps.manifests().get(0)).get("name"));
+            yes("manifest_TAPSAccount.json".equals(ps.manifests().get(0).fileName()), "file name should be manifest_TAPSAccount.json but was " + ps.manifests().get(0).fileName());
             // combine --tables ignores prefixes
             for (String w : List.of("TAPSAccount", "x.TAPSAccount", "p.q.TAPSAccount", "[dbo].[TAPSAccount]")) {
                 var c = DatasetManifestCombiner.combine(List.of(SourceInput.of("x.json", r.manifests().get(0).content())), new DatasetManifestCombiner.Selection(null, List.of(w)));
-                eq(1, c.datasets());
+                yes(c.datasets() == 1, "combine --tables '" + w + "' should find the TAPSAccount dataset (prefix ignored) but found " + c.datasets() + ". Refresh DatasetManifestCombiner.java and TableNames.java.");
             }
-            eq("TAPSAccount", TableNames.bare(" a2 . dbo . TAPSAccount "));
-            eq("Odd.Name", TableNames.bare("a2.dbo.\"Odd.Name\"").replace("\"", ""));
-            eq("T", TableNames.bare("`a2`.`T`"));
+            yes("TAPSAccount".equals(TableNames.bare(" a2 . dbo . TAPSAccount ")), "TableNames.bare did not reduce ' a2 . dbo . TAPSAccount ' to TAPSAccount: " + TableNames.bare(" a2 . dbo . TAPSAccount "));
+            yes("Odd.Name".equals(TableNames.bare("a2.dbo.\"Odd.Name\"").replace("\"", "")), "TableNames.bare did not keep a dot inside quotes");
+            yes("T".equals(TableNames.bare("`a2`.`T`")), "TableNames.bare did not handle back-quoted names");
         });
         test("complete metadata file: description, domain clean-up, upstream and the order of description sources", () -> {
             String complete = "Tables,Description,Domain,Boundary,Upstream Dataset,Producer EON ID\r\n"
